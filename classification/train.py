@@ -1,3 +1,15 @@
+##
+# @file train.py
+# @brief Document classification model training script
+#
+# This script trains a document classification model using ResNet18 on document image data
+# stored in MinIO. It loads data from CSV files, processes images, and trains a deep learning
+# model to classify documents into predefined categories.
+#
+# @author Statistical Learning Team
+# @date 2025-03-20
+#
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -16,8 +28,20 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Custom Dataset class for MinIO
+##
+# @brief Custom Dataset class for loading images from MinIO storage
+#
+# This class extends PyTorch's Dataset class to load images from MinIO object storage.
+# It takes a DataFrame with image URLs, connects to MinIO, fetches images by their names,
+# applies transformations, and returns image-label pairs for model training.
+#
 class MinioImageDataset(Dataset):
+    ##
+    # @brief Constructor for MinioImageDataset class
+    # @param dataframe DataFrame containing 'image' URLs and 'label' columns
+    # @param bucket_name Name of the MinIO bucket to fetch images from
+    # @param transform Optional transformations to apply to the images
+    #
     def __init__(self, dataframe, bucket_name, transform=None):
         self.df = dataframe.reset_index(drop=True)
         self.bucket_name = bucket_name
@@ -29,9 +53,18 @@ class MinioImageDataset(Dataset):
             secure=False
         )
 
+    ##
+    # @brief Returns the number of items in the dataset
+    # @return Number of images in the dataset
+    #
     def __len__(self):
         return len(self.df)
 
+    ##
+    # @brief Fetches and processes a single item from the dataset
+    # @param idx Index of the item to fetch
+    # @return Tuple of (transformed image tensor, class label tensor)
+    #
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         image_url = row['image']
@@ -51,55 +84,103 @@ class MinioImageDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
+        # Convert 'invoice' string labels to integer class 11
         change = lambda x: 11 if x == 'invoice' else x
         label = torch.tensor(int(change(row['label'])), dtype=torch.long)
 
         return image, label
 
-# Transformations
+##
+# @brief Image transformations for the model
+#
+# Defines the sequence of transformations to apply to input images:
+# 1. Resize to 224x224 pixels (standard input size for ResNet)
+# 2. Convert to PyTorch tensor
+# 3. Normalize using ImageNet mean and standard deviation values
+#
 transformations = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet means
+                         std=[0.229, 0.224, 0.225])   # ImageNet stds
 ])
 
-# Load data
+##
+# @brief Data loading and preparation
+#
+# Loads train and test datasets from CSV files, creates dataset objects,
+# and prepares DataLoaders for efficient batch processing during training.
+#
+
+# Load data from CSV files
 train_df = pd.read_csv('train.csv')
 test_df = pd.read_csv('test.csv')
+
+# Determine the number of unique classes in the dataset
 num_classes = train_df['label'].apply(lambda x: 11 if x == 'invoice' else int(x)).nunique()
 
-# Dataset and DataLoader
+# Create dataset objects for training and testing
 train_dataset = MinioImageDataset(train_df, bucket_name='dapper', transform=transformations)
 test_dataset = MinioImageDataset(test_df, bucket_name='dapper', transform=transformations)
 
+##
+# @brief DataLoader for training data
+#
+# Creates a DataLoader for efficiently loading training data in batches.
+# Enables shuffling, multi-processing, and memory pinning for faster training.
+#
 train_loader = DataLoader(
     train_dataset,
-    batch_size=100,
-    shuffle=True,
-    num_workers=12,
-    pin_memory=True
+    batch_size=100,        # Number of samples per batch
+    shuffle=True,          # Shuffle data for each epoch
+    num_workers=12,        # Number of subprocesses for data loading
+    pin_memory=True        # Pin memory for faster data transfer to GPU
 )
 
+##
+# @brief DataLoader for test data
+#
+# Creates a DataLoader for efficiently loading test data in batches.
+# Uses same batch size as training loader but without shuffling.
+#
 test_loader = DataLoader(
     test_dataset,
-    batch_size=100,
-    shuffle=False,
-    num_workers=12,
-    pin_memory=True
+    batch_size=100,        # Number of samples per batch
+    shuffle=False,         # No need to shuffle test data
+    num_workers=12,        # Number of subprocesses for data loading
+    pin_memory=True        # Pin memory for faster data transfer to GPU
 )
 
-# Model setup
+##
+# @brief Model setup and initialization
+#
+# Sets up the device (GPU if available, otherwise CPU), initializes the ResNet18 model
+# with pre-trained weights, modifies the final fully connected layer for our classification task,
+# and defines loss function and optimizer.
+#
+
+# Determine device (GPU or CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logging.info(f"Using device: {device}")
 
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-model.fc = nn.Linear(model.fc.in_features, num_classes)
-model = model.to(device)
+##
+# @brief Initialize the model architecture
+#
+# Uses a pre-trained ResNet18 model and adapts it for document classification
+# by replacing the final fully connected layer to match our number of classes.
+#
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # Load pre-trained weights
+model.fc = nn.Linear(model.fc.in_features, num_classes)  # Replace final layer
+model = model.to(device)  # Move model to GPU if available
 
-# Loss and optimizer
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+##
+# @brief Loss function and optimizer
+#
+# Uses CrossEntropyLoss for multi-class classification and Adam optimizer
+# with a learning rate of 1e-4 for stable training.
+#
+criterion = nn.CrossEntropyLoss()  # Standard loss for classification tasks
+optimizer = optim.Adam(model.parameters(), lr=1e-4)  # Adam optimizer with learning rate 1e-4
 
 # Training and evaluation function
 def evaluate(model, dataloader, criterion, device):
