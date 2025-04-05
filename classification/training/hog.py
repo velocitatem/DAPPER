@@ -15,6 +15,7 @@ import time
 import os
 from sklearn.metrics import confusion_matrix, classification_report
 from torchvision import transforms
+import cv2
 
 # Import the custom logger from utils
 from classification.utils.logger import Logger, get_standard_logger
@@ -32,7 +33,8 @@ class HogClassifier:
         num_classes: int,
         classifier: str = "logistic_regression", 
         hog_params: Optional[Dict[str, Any]] = None,
-        classifier_params: Optional[Dict[str, Any]] = None
+        classifier_params: Optional[Dict[str, Any]] = None,
+        device: Optional[str] = None
     ):
         """
         Initialize the HOG classifier.
@@ -42,8 +44,11 @@ class HogClassifier:
             classifier: Type of classifier to use ("logistic_regression" or "svm")
             hog_params: Parameters for HOG feature extraction
             classifier_params: Parameters for the classifier
+            device: Device to use for computation ('cuda' or 'cpu')
         """
         self.num_classes = num_classes
+        self.classifier_type = classifier
+        self.device = torch.device(device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
         
         # Default HOG parameters
         self.hog_params = {
@@ -75,15 +80,25 @@ class HogClassifier:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
+        # HOG parameters
+        self.win_size = (64, 64)
+        self.block_size = (16, 16)
+        self.block_stride = (8, 8)
+        self.cell_size = (8, 8)
+        self.nbins = 9
+        
+        # Initialize HOG descriptor
+        self.hog = cv2.HOGDescriptor(self.win_size, self.block_size, self.block_stride, self.cell_size, self.nbins)
+        
     def preprocess_image(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
-        Extract HOG features from an image.
+        Preprocess an image for HOG feature extraction.
         
         Args:
             image: Image as PIL Image, PyTorch tensor, or numpy array
             
         Returns:
-            HOG feature vector
+            Preprocessed image as a numpy array
         """
         # Convert to PIL Image if needed
         if isinstance(image, torch.Tensor):
@@ -104,27 +119,41 @@ class HogClassifier:
         elif isinstance(image, np.ndarray):
             image = Image.fromarray(image)
             
-        # Convert to grayscale and resize
-        image_size = self.hog_params["image_size"]
-        image = image.convert('L').resize(image_size)
-        image_np = np.array(image)
+        # Apply transformations
+        if not isinstance(image, torch.Tensor):
+            image = self.transform(image)
+            
+        # Convert to numpy array for HOG
+        img_np = image.permute(1, 2, 0).cpu().numpy()
         
-        # Extract HOG features
-        features = hog(
-            image_np, 
-            orientations=self.hog_params["orientations"],
-            pixels_per_cell=self.hog_params["pixels_per_cell"], 
-            cells_per_block=self.hog_params["cells_per_block"], 
-            feature_vector=True
-        )
+        # Convert to grayscale if needed
+        if img_np.shape[2] == 3:
+            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+            
+        # Ensure the image is in the correct format for HOG
+        img_np = (img_np * 255).astype(np.uint8)
         
-        return features
+        return img_np
+    
+    def extract_hog_features(self, image: np.ndarray) -> np.ndarray:
+        """
+        Extract HOG features from an image.
+        
+        Args:
+            image: Preprocessed image as a numpy array
+            
+        Returns:
+            HOG features as a numpy array
+        """
+        # Compute HOG features
+        features = self.hog.compute(image)
+        return features.flatten()
     
     def train_model(
         self, 
         train_dataset, 
         val_dataset=None, 
-        logger=None,
+        tb_logger=None,
         **kwargs
     ):
         """
@@ -133,183 +162,229 @@ class HogClassifier:
         Args:
             train_dataset: Training dataset
             val_dataset: Validation dataset
-            logger: Logger instance for TensorBoard logging
+            tb_logger: Logger instance for TensorBoard logging
             **kwargs: Additional training parameters
             
         Returns:
             Validation accuracy or training accuracy
         """
-        # Extract images and labels from training dataset
-        train_images = []
-        train_labels = []
+        # Extract features from training data
+        X_train = []
+        y_train = []
         
-        # Process training data
-        for img, label in tqdm(train_dataset, desc="Processing training data"):
-            # Apply transform if needed
-            if not isinstance(img, torch.Tensor):
-                img = self.transform(img)
+        # Use standard logger for progress information
+        logger.info("Processing training data")
+        for images, labels in tqdm(train_dataset, desc="Processing training data"):
+            # Process each image in the batch
+            for img, label in zip(images, labels):
+                # Preprocess image
+                img_np = self.preprocess_image(img)
                 
-            train_images.append(img)
-            
-            # Handle the label
-            if isinstance(label, torch.Tensor):
-                if label.numel() == 1:  # Single element tensor
-                    train_labels.append(label.item())
-                else:
-                    train_labels.append(label[0].item())
-            else:
-                train_labels.append(label)
-        
-        # Extract features for training
-        features = np.array([self.preprocess_image(img) for img in tqdm(train_images, desc="Extracting HOG features")])
-        
-        # Train the model
-        self.model.fit(features, train_labels)
-        
-        # Calculate training accuracy
-        train_preds = self.model.predict(features)
-        train_accuracy = (train_preds == train_labels).mean()
-        
-        # Log metrics if logger provided
-        if logger:
-            logger.log_metrics({'train/accuracy': train_accuracy}, step=0)
-        
-        # Process validation data if provided
-        val_accuracy = None
-        if val_dataset is not None:
-            val_images = []
-            val_labels = []
-            
-            for img, label in tqdm(val_dataset, desc="Processing validation data"):
-                # Apply transform if needed
-                if not isinstance(img, torch.Tensor):
-                    img = self.transform(img)
-                    
-                val_images.append(img)
+                # Extract HOG features
+                features = self.extract_hog_features(img_np)
+                
+                # Store features and label
+                X_train.append(features)
                 
                 # Handle the label
                 if isinstance(label, torch.Tensor):
                     if label.numel() == 1:  # Single element tensor
-                        val_labels.append(label.item())
+                        label = label.item()
                     else:
-                        val_labels.append(label[0].item())
-                else:
-                    val_labels.append(label)
-            
-            # Extract features for validation
-            val_features = np.array([self.preprocess_image(img) for img in tqdm(val_images, desc="Extracting validation features")])
-            
-            # Calculate validation accuracy
-            val_preds = self.model.predict(val_features)
-            val_accuracy = (val_preds == val_labels).mean()
-            
-            # Log metrics if logger provided
-            if logger:
-                logger.log_metrics({'val/accuracy': val_accuracy}, step=0)
+                        label = label[0].item()
+                
+                y_train.append(label)
         
-        # Return the appropriate accuracy
-        return val_accuracy if val_accuracy is not None else train_accuracy
+        # Convert to numpy arrays
+        X_train = np.array(X_train)
+        y_train = np.array(y_train)
+        
+        # Scale features
+        X_train = self.model.steps[0][1].fit_transform(X_train)
+        
+        # Train classifier
+        logger.info(f"Training {self.classifier_type} classifier")
+        self.model.steps[1][1].fit(X_train, y_train)
+        
+        # Evaluate on training set
+        y_pred = self.model.predict(X_train)
+        train_accuracy = np.mean(y_pred == y_train)
+        
+        logger.info(f"Training accuracy: {train_accuracy:.4f}")
+        
+        # Log metrics if TensorBoard logger provided
+        tb_logger.log_metrics({
+            'train/accuracy': train_accuracy
+        })
+        
+        # Evaluate on validation set if provided
+        if val_dataset is not None:
+            return self.evaluate(val_dataset, logger)
+        
+        return train_accuracy
     
-    def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> int:
+    def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray], logger=None) -> int:
         """
         Run inference on a single image.
         
         Args:
             image: Image to classify
+            logger: Optional logger for logging
             
         Returns:
             Predicted class label
         """
-        # Apply transform if needed
-        if not isinstance(image, torch.Tensor):
-            image = self.transform(image)
+        # Preprocess image
+        img_np = self.preprocess_image(image)
+        
+        # Extract HOG features
+        features = self.extract_hog_features(img_np)
+        
+        # Scale features
+        features = self.model.steps[0][1].transform(features.reshape(1, -1))
+        
+        # Predict class
+        prediction = self.model.predict(features)[0]
+        
+        # Log prediction if logger provided
+        if logger:
+            logger.info(f"Predicted class: {prediction}")
             
-        features = self.preprocess_image(image).reshape(1, -1)
-        return self.model.predict(features)[0]
+        return prediction
     
-    def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
+    def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray], logger=None) -> np.ndarray:
         """
         Get class probabilities for an image.
         
         Args:
             image: Image to classify
+            logger: Optional logger for logging
             
         Returns:
             Array of class probabilities
         """
-        # Apply transform if needed
-        if not isinstance(image, torch.Tensor):
-            image = self.transform(image)
+        # Preprocess image
+        img_np = self.preprocess_image(image)
+        
+        # Extract HOG features
+        features = self.extract_hog_features(img_np)
+        
+        # Scale features
+        features = self.model.steps[0][1].transform(features.reshape(1, -1))
+        
+        # Get probabilities
+        probabilities = self.model.predict_proba(features)[0]
+        
+        # Log probabilities if logger provided
+        if logger:
+            logger.info(f"Class probabilities: {probabilities}")
             
-        features = self.preprocess_image(image).reshape(1, -1)
-        return self.model.predict_proba(features)[0]
+        return probabilities
     
-    def evaluate(self, val_dataset, logger=None):
+    def evaluate(self, val_dataset, tb_logger=None, step=None):
         """
         Evaluate the model on a validation dataset.
         
         Args:
             val_dataset: Validation dataset
             logger: Logger instance for TensorBoard logging
+            step: Step number for logging
             
         Returns:
             Validation accuracy
         """
-        val_images = []
-        val_labels = []
+        # Extract features from validation data
+        X_val = []
+        y_val = []
         
-        # Process validation data
-        for img, label in tqdm(val_dataset, desc="Processing validation data"):
-            # Apply transform if needed
-            if not isinstance(img, torch.Tensor):
-                img = self.transform(img)
+        for images, labels in tqdm(val_dataset, desc="Evaluating"):
+            # Process each image in the batch
+            for img, label in zip(images, labels):
+                # Preprocess image
+                img_np = self.preprocess_image(img)
                 
-            val_images.append(img)
-            
-            # Handle the label
-            if isinstance(label, torch.Tensor):
-                if label.numel() == 1:  # Single element tensor
-                    val_labels.append(label.item())
-                else:
-                    val_labels.append(label[0].item())
-            else:
-                val_labels.append(label)
+                # Extract HOG features
+                features = self.extract_hog_features(img_np)
+                
+                # Store features and label
+                X_val.append(features)
+                
+                # Handle the label
+                if isinstance(label, torch.Tensor):
+                    if label.numel() == 1:  # Single element tensor
+                        label = label.item()
+                    else:
+                        label = label[0].item()
+                
+                y_val.append(label)
         
-        # Extract features for validation
-        val_features = np.array([self.preprocess_image(img) for img in tqdm(val_images, desc="Extracting validation features")])
+        # Convert to numpy arrays
+        X_val = np.array(X_val)
+        y_val = np.array(y_val)
         
-        # Calculate validation accuracy
-        val_preds = self.model.predict(val_features)
-        val_accuracy = (val_preds == val_labels).mean()
+        # Scale features
+        X_val = self.model.steps[0][1].transform(X_val)
         
-        # Log metrics if logger provided
-        if logger:
-            logger.log_metrics({'val/accuracy': val_accuracy}, step=0)
+        # Predict classes
+        y_pred = self.model.predict(X_val)
         
-        return val_accuracy
+        # Calculate accuracy
+        accuracy = np.mean(y_pred == y_val)
+        
+        # Log metrics if TensorBoard logger provided
+        tb_logger.log_metrics({'val/accuracy': accuracy}, step=step)
+        logger.info(f"Validation accuracy: {accuracy:.4f}")
+        
+        return accuracy
     
-    def save(self, path: str) -> None:
+    def save(self, path: str, logger=None) -> None:
         """
         Save the trained model to disk.
         
         Args:
             path: Path to save the model
+            logger: Optional logger for logging
         """
         model_info = {
             "model": self.model,
             "hog_params": self.hog_params,
-            "num_classes": self.num_classes
+            "num_classes": self.num_classes,
+            "classifier_type": self.classifier_type,
+            "win_size": self.win_size,
+            "block_size": self.block_size,
+            "block_stride": self.block_stride,
+            "cell_size": self.cell_size,
+            "nbins": self.nbins
         }
+        
         joblib.dump(model_info, path)
+        
+        if logger:
+            logger.info(f"Model saved to {path}")
     
-    def load(self, path: str) -> None:
+    def load(self, path: str, logger=None) -> None:
         """
         Load a trained model from disk.
         
         Args:
             path: Path to the saved model
+            logger: Optional logger for logging
         """
         model_info = joblib.load(path)
         self.model = model_info["model"]
         self.hog_params = model_info["hog_params"]
-        self.num_classes = model_info["num_classes"]
+        self.num_classes = model_info["num_classes"]        
+        self.classifier_type = model_info["classifier_type"]
+        
+        # Load HOG parameters
+        self.win_size = model_info["win_size"]
+        self.block_size = model_info["block_size"]
+        self.block_stride = model_info["block_stride"]
+        self.cell_size = model_info["cell_size"]
+        self.nbins = model_info["nbins"]
+        
+        # Reinitialize HOG descriptor
+        self.hog = cv2.HOGDescriptor(self.win_size, self.block_size, self.block_stride, self.cell_size, self.nbins)
+        
+        if logger:
+            logger.info(f"Model loaded from {path}")

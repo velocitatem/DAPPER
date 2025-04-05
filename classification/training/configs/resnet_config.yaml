@@ -1,0 +1,20 @@
+# ResNet Classifier Configuration
+model:
+  name: "resnet"
+  resnet_model: "resnet18"  # Options: resnet18, resnet34, resnet50, resnet101
+  pretrained: true
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  num_epochs: 50
+  dropout_rate: 0.7
+
+# Training parameters
+training:
+  batch_size: 64
+  num_workers: 4
+  test_size: 0.2
+
+# Logging parameters
+logging:
+  log_dir: "logs"
+  experiment_name: "resnet_baseline"  # Will be auto-generated if null 

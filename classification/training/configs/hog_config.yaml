@@ -1,0 +1,15 @@
+# HOG Classifier Configuration
+model:
+  name: "hog"
+  classifier: "logistic_regression"  # Options: logistic_regression, svm
+
+# Training parameters
+training:
+  batch_size: 32
+  num_workers: 4
+  test_size: 0.2
+
+# Logging parameters
+logging:
+  log_dir: "logs"
+  experiment_name: "hog_baseline"  # Will be auto-generated if null 

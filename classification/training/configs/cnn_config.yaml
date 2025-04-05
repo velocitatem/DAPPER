@@ -1,0 +1,17 @@
+# CNN Classifier Configuration
+model:
+  name: "cnn"
+  input_channels: 3  # 1 for grayscale, 3 for RGB
+  learning_rate: 0.001
+  num_epochs: 10
+
+# Training parameters
+training:
+  batch_size: 32
+  num_workers: 4
+  test_size: 0.2
+
+# Logging parameters
+logging:
+  log_dir: "logs"
+  experiment_name: "cnn_baseline"  # Will be auto-generated if null 
