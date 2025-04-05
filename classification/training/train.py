@@ -17,6 +17,7 @@ import time
 import os
 import sys
 import yaml
+from torchvision import transforms
 
 # Set up logging and random seed
 logger = get_standard_logger("train")
@@ -33,14 +34,14 @@ models = {
     "lsnet_b": LSNetClassifier,
 }
 
-def train_model(model_name, train_dataset, val_dataset, tb_logger=None, **kwargs):
+def train_model(model_name, train_loader, val_loader, tb_logger=None, **kwargs):
     """
     Train a model with optional TensorBoard logging
     
     Args:
         model_name: Name of the model to train
-        train_dataset: Training dataset
-        val_dataset: Validation dataset
+        train_loader: Training DataLoader
+        val_loader: Validation DataLoader
         tb_logger: Optional logger for TensorBoard
         **kwargs: Additional arguments to pass to the model
         
@@ -54,8 +55,8 @@ def train_model(model_name, train_dataset, val_dataset, tb_logger=None, **kwargs
     
     # Train model with logger
     accuracy = model.train_model(
-        train_dataset, 
-        val_dataset,
+        train_loader, 
+        val_loader,
         tb_logger=tb_logger
     )
     
@@ -63,44 +64,45 @@ def train_model(model_name, train_dataset, val_dataset, tb_logger=None, **kwargs
     
     return model
 
-def custom_collate(batch):
+def create_dataloaders(train_df, val_df, batch_size=32, num_workers=4, prefetch_factor=2):
     """
-    Custom collate function for the DataLoader to handle PIL Images.
-    
-    Args:
-        batch: List of (image, label) tuples
-        
-    Returns:
-        Tuple of (images, labels)
-    """
-    images, labels = zip(*batch)
-    return images, labels
-
-def create_dataloaders(train_df, val_df, batch_size=32, num_workers=4):
-    """
-    Create PyTorch DataLoaders from DataFrames
+    Create optimized PyTorch DataLoaders from DataFrames
     
     Args:
         train_df: Training DataFrame with 'image' and 'label' columns
         val_df: Validation DataFrame with 'image' and 'label' columns
         batch_size: Batch size for DataLoader
         num_workers: Number of worker processes for data loading
+        prefetch_factor: Number of batches loaded in advance by each worker
         
     Returns:
         tuple: (train_loader, val_loader)
     """
-    # Create datasets without transforms (models will handle their own transforms)
-    train_dataset = MinioImageDataset(train_df, bucket_name="dapper")
-    val_dataset = MinioImageDataset(val_df, bucket_name="dapper")
+    # Determine optimal number of workers if not specified
+    if num_workers <= 0:
+        num_workers = min(os.cpu_count(), 8)  # Use at most 8 workers
     
-    # Create data loaders with custom collate function
+    # Define transformations
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    
+    # Create datasets with transforms
+    train_dataset = MinioImageDataset(train_df, bucket_name="dapper", transform=transform)
+    val_dataset = MinioImageDataset(val_df, bucket_name="dapper", transform=transform)
+    
+    # Create data loaders with optimized settings
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
-        collate_fn=custom_collate
+        prefetch_factor=prefetch_factor,
+        persistent_workers=True,  # Keep workers alive between epochs
+        drop_last=True,  # Drop last incomplete batch for better GPU utilization
     )
     
     val_loader = DataLoader(
@@ -109,7 +111,8 @@ def create_dataloaders(train_df, val_df, batch_size=32, num_workers=4):
         shuffle=False,
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
-        collate_fn=custom_collate
+        prefetch_factor=prefetch_factor,
+        persistent_workers=True,
     )
     
     return train_loader, val_loader
@@ -177,7 +180,7 @@ if __name__ == "__main__":
     # Split dataset
     train_df, val_df = train_test_split(
         dataset, 
-        test_size=config['data']['val_split'], 
+        test_size=config['training']['test_size'], 
         random_state=42
     )
     logger.info(f"Split dataset: {len(train_df)} training, {len(val_df)} validation")
@@ -186,8 +189,8 @@ if __name__ == "__main__":
     train_loader, val_loader = create_dataloaders(
         train_df, 
         val_df, 
-        batch_size=config['data']['dataloader']['batch_size'], 
-        num_workers=config['data']['dataloader']['num_workers']
+        batch_size=config['data']['dataloader'].get('batch_size', 64), 
+        num_workers=config['data']['dataloader'].get('num_workers', 4)
     )
     
     # Prepare model arguments based on model type

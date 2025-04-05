@@ -11,12 +11,14 @@ data:
   # Dataset settings
   datasets:
     - imagenet
-  
-  # DataLoader settings
+    
+  # Dataloader settings
   dataloader:
     batch_size: 128
     num_workers: 12
     pin_memory: true
+    shuffle: true
+    drop_last: false
 
 # Model settings
 model:
@@ -42,7 +44,7 @@ training:
     enabled: true
     patience: 10
     min_delta: 0.001
-  
+  test_size: 0.2
   # Loss function
   loss:
     name: "cross_entropy"  # Options: cross_entropy, focal_loss

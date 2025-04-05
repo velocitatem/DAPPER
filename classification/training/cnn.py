@@ -154,89 +154,129 @@ class CNNClassifier:
     
     def train_model(
         self, 
-        train_dataset, 
-        val_dataset=None, 
-        logger=None,
+        train_loader, 
+        val_loader=None, 
+        tb_logger=None,
         **kwargs
     ):
         """
-        Train the model using dataset objects.
+        Train the model using DataLoader objects.
         
         Args:
-            train_dataset: Training dataset
-            val_dataset: Validation dataset
-            logger: Logger instance for TensorBoard logging
+            train_loader: Training DataLoader
+            val_loader: Validation DataLoader
+            tb_logger: Logger instance for TensorBoard logging
             **kwargs: Additional training parameters
             
         Returns:
             Validation accuracy or training accuracy
         """
+        # Enable automatic mixed precision for faster training
+        scaler = torch.cuda.amp.GradScaler()
+        
         # Training loop
+        best_val_accuracy = 0.0
+        patience = 5
+        patience_counter = 0
+        early_stopping = False
+        
+        # Move model to GPU if available
+        self.model = self.model.to(self.device)
+        
         for epoch in range(self.num_epochs):
+            if early_stopping:
+                break
+                
             self.model.train()
             running_loss = 0.0
             correct = 0
             total = 0
             
-            # Process training data
-            for img, label in tqdm(train_dataset, desc=f"Epoch {epoch+1}/{num_epochs}"):
-                # Apply transform if needed
-                if not isinstance(img, torch.Tensor):
-                    img = self.preprocess_image(img)
-                else:
-                    img = img.to(self.device)
-                
-                # Handle the label
-                if isinstance(label, torch.Tensor):
-                    if label.numel() == 1:  # Single element tensor
-                        label = label.item()
-                    else:
-                        label = label[0].item()
-                
-                # Convert label to tensor
-                label_tensor = torch.tensor(label, dtype=torch.long).to(self.device)
+            # Process training data with progress bar
+            pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
+            for batch_idx, (images, labels) in enumerate(pbar):
+                # Move data to device
+                images = images.to(self.device, non_blocking=True)
+                labels = labels.to(self.device, non_blocking=True)
                 
                 # Zero the parameter gradients
-                self.optimizer.zero_grad()
+                self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
                 
-                # Forward pass
-                outputs = self.model(img.unsqueeze(0))
-                loss = self.criterion(outputs, label_tensor.unsqueeze(0))
+                # Forward pass with automatic mixed precision
+                with torch.cuda.amp.autocast():
+                    outputs = self.model(images)
+                    loss = self.criterion(outputs, labels)
                 
-                # Backward pass and optimize
-                loss.backward()
-                self.optimizer.step()
+                # Backward pass and optimize with gradient scaling
+                scaler.scale(loss).backward()
+                scaler.unscale_(self.optimizer)
+                
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                
+                # Optimizer step with gradient scaling
+                scaler.step(self.optimizer)
+                scaler.update()
                 
                 # Statistics
                 running_loss += loss.item()
                 _, predicted = torch.max(outputs.data, 1)
-                total += 1
-                correct += (predicted == label_tensor).sum().item()
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'loss': running_loss / (batch_idx + 1),
+                    'acc': 100. * correct / total
+                })
+                
+                # Log batch metrics to TensorBoard
+                if tb_logger:
+                    tb_logger.log_metrics({
+                        'train/batch_loss': loss.item(),
+                        'train/batch_accuracy': 100. * correct / total,
+                    }, step=epoch * len(train_loader) + batch_idx)
             
             # Calculate epoch statistics
-            epoch_loss = running_loss / total
-            epoch_accuracy = correct / total
+            epoch_loss = running_loss / total if total > 0 else 0
+            epoch_accuracy = correct / total if total > 0 else 0
             
-            # Log metrics if logger provided
-            if logger:
-                logger.log_metrics({
-                    'train/loss': epoch_loss,
-                    'train/accuracy': epoch_accuracy
+            # Log metrics to TensorBoard if available
+            if tb_logger:
+                tb_logger.log_metrics({
+                    'train/epoch_loss': epoch_loss,
+                    'train/epoch_accuracy': epoch_accuracy,
+                    'train/learning_rate': self.optimizer.param_groups[0]['lr']
                 }, step=epoch)
             
             # Validation
             val_accuracy = None
-            if val_dataset is not None:
-                val_accuracy = self.evaluate(val_dataset, logger, epoch)
+            if val_loader is not None:
+                val_accuracy = self.evaluate(val_loader, tb_logger, epoch)
                 
-                # Log validation metrics if logger provided
-                if logger:
-                    logger.log_metrics({
-                        'val/accuracy': val_accuracy
-                    }, step=epoch)
+                # Early stopping check
+                if val_accuracy > best_val_accuracy:
+                    best_val_accuracy = val_accuracy
+                    patience_counter = 0
+                    
+                    # Save best model
+                    model_path = f"models/cnn_best.pth"
+                    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                        'scaler_state_dict': scaler.state_dict(),
+                        'val_accuracy': val_accuracy,
+                        'train_accuracy': epoch_accuracy,
+                    }, model_path)
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        early_stopping = True
+                        logger.info(f"Early stopping triggered after {epoch+1} epochs")
         
-        # Return the appropriate accuracy
-        return val_accuracy if val_accuracy is not None else epoch_accuracy
+        return best_val_accuracy if val_loader is not None else epoch_accuracy
     
     def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> int:
         """
@@ -290,55 +330,55 @@ class CNNClassifier:
             
         return probabilities.cpu().numpy()[0]
     
-    def evaluate(self, val_dataset, logger=None, step=None):
+    def evaluate(self, val_loader, tb_logger=None, step=None):
         """
-        Evaluate the model on a validation dataset.
+        Evaluate the model on validation set.
         
         Args:
-            val_dataset: Validation dataset
-            logger: Logger instance for TensorBoard logging
-            step: Step number for logging
+            val_loader: Validation DataLoader
+            tb_logger: TensorBoard logger instance for metrics visualization
+            step: Current step for logging
             
         Returns:
             Validation accuracy
         """
         self.model.eval()
+        val_loss = 0.0
         correct = 0
         total = 0
         
-        # Process validation data
-        with torch.no_grad():
-            for img, label in tqdm(val_dataset, desc="Evaluating"):
-                # Apply transform if needed
-                if not isinstance(img, torch.Tensor):
-                    img = self.preprocess_image(img)
-                else:
-                    img = img.to(self.device)
-                
-                # Handle the label
-                if isinstance(label, torch.Tensor):
-                    if label.numel() == 1:  # Single element tensor
-                        label = label.item()
-                    else:
-                        label = label[0].item()
-                
-                # Convert label to tensor
-                label_tensor = torch.tensor(label, dtype=torch.long).to(self.device)
+        all_preds = []
+        all_labels = []
+        
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            for images, labels in tqdm(val_loader, desc="Validation"):
+                # Move data to device
+                images = images.to(self.device, non_blocking=True)
+                labels = labels.to(self.device, non_blocking=True)
                 
                 # Forward pass
-                outputs = self.model(img.unsqueeze(0))
-                _, predicted = torch.max(outputs.data, 1)
+                outputs = self.model(images)
+                loss = self.criterion(outputs, labels)
                 
                 # Statistics
-                total += 1
-                correct += (predicted == label_tensor).sum().item()
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                
+                # Collect predictions and labels for confusion matrix if needed
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         
         # Calculate accuracy
-        accuracy = correct / total
+        accuracy = correct / total if total > 0 else 0
         
-        # Log metrics if logger provided
-        if logger and step is not None:
-            logger.log_metrics({'val/accuracy': accuracy}, step=step)
+        # Log metrics to TensorBoard if available
+        if tb_logger:
+            tb_logger.log_metrics({
+                'val/loss': val_loss / total if total > 0 else 0,
+                'val/accuracy': accuracy
+            }, step=step)
         
         return accuracy
     

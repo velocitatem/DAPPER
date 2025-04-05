@@ -72,7 +72,7 @@ class LSConvolution(nn.Module):
         self.bn2 = nn.BatchNorm2d(out_channels)
         
         # Activation function
-        self.activation = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
     
     def forward(self, x):
         """
@@ -87,12 +87,12 @@ class LSConvolution(nn.Module):
         # Large kernel perception
         x = self.large_kernel_conv(x)
         x = self.bn1(x)
-        x = self.activation(x)
+        x = self.relu(x)
         
         # Small kernel aggregation
         x = self.small_kernel_conv(x)
         x = self.bn2(x)
-        x = self.activation(x)
+        x = self.relu(x)
         
         return x
 
@@ -136,10 +136,11 @@ class LSBlock(nn.Module):
             Output tensor of shape [batch_size, out_channels, height, width]
         """
         # LS Convolution
+        identity = x  # Store original input for residual connection
         out = self.conv(x)
         
-        # Residual connection
-        out += self.shortcut(x)
+        # Residual connection (use standard addition)
+        out = out + self.shortcut(identity)
         
         return out
 
@@ -163,25 +164,22 @@ class LSNet(nn.Module):
         
         # Model configuration based on size
         if model_size == 't':
-            # Tiny model configuration
             self.channels = [64, 128, 256, 512]
             self.num_blocks = [2, 2, 6, 2]
         elif model_size == 's':
-            # Small model configuration
             self.channels = [64, 128, 256, 512]
             self.num_blocks = [3, 4, 8, 3]
         elif model_size == 'b':
-            # Base model configuration
             self.channels = [64, 128, 256, 512]
             self.num_blocks = [4, 6, 12, 4]
         else:
             raise ValueError(f"Unsupported model size: {model_size}")
         
-        # Initial convolution
+        # Initial convolution with non-inplace ReLU
         self.conv1 = nn.Sequential(
             nn.Conv2d(3, self.channels[0], kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(self.channels[0]),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=False)
         )
         
         # Max pooling
@@ -198,6 +196,20 @@ class LSNet(nn.Module):
         
         # Classification head
         self.fc = nn.Linear(self.channels[3], num_classes)
+        
+        # Initialize weights
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
     
     def _make_layer(self, in_channels, out_channels, num_blocks, stride=1):
         """
@@ -260,7 +272,7 @@ class LSNetClassifier:
     
     def __init__(
         self, 
-        num_classes: int,
+        num_classes: Optional[int] = None,
         model_size: str = 't',
         learning_rate: float = 0.001,
         weight_decay: float = 0.0001,
@@ -269,10 +281,14 @@ class LSNetClassifier:
         batch_size: int = 64,
         num_workers: int = 4,
         pretrained: bool = False,
-        freeze_backbone: bool = False
+        freeze_backbone: bool = False,
+        config: Optional[Dict[str, Any]] = None
     ):
         """
         Initialize the LSNet classifier.
+        
+        Can be initialized either with direct parameters or with a config dictionary.
+        If config is provided, it takes precedence over direct parameters.
         
         Args:
             num_classes: Number of classes to classify
@@ -285,18 +301,50 @@ class LSNetClassifier:
             num_workers: Number of workers for data loading
             pretrained: Whether to use pre-trained weights
             freeze_backbone: Whether to freeze the backbone
+            config: Configuration dictionary containing model and training parameters
         """
-        self.num_classes = num_classes
-        self.model_size = model_size
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.num_epochs = num_epochs
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.pretrained = pretrained
-        self.freeze_backbone = freeze_backbone
-        
-        # Set device
+        if config is not None:
+            # Initialize from config
+            self.num_classes = config['model'].get('num_classes', 1000)
+            self.model_size = config['model'].get('name', 't').split('_')[1]  # Extract t/s/b from lsnet_t/s/b
+            self.pretrained = config['model'].get('pretrained', False)
+            self.freeze_backbone = config['model'].get('freeze_backbone', False)
+            
+            # Training settings
+            self.learning_rate = config['training']['optimizer'].get('learning_rate', 0.001)
+            self.weight_decay = config['training']['optimizer'].get('weight_decay', 0.0001)
+            self.num_epochs = config['training'].get('num_epochs', 100)
+            
+            # Dataloader settings
+            if 'data' in config and 'dataloader' in config['data']:
+                self.batch_size = config['data']['dataloader'].get('batch_size', 64)
+                self.num_workers = config['data']['dataloader'].get('num_workers', 4)
+                self.pin_memory = config['data']['dataloader'].get('pin_memory', True)
+                self.shuffle = config['data']['dataloader'].get('shuffle', True)
+                self.drop_last = config['data']['dataloader'].get('drop_last', False)
+            else:
+                logger.warning("No dataloader configuration found, using default values")
+                self.batch_size = 64
+                self.num_workers = 4
+                self.pin_memory = True
+                self.shuffle = True
+                self.drop_last = False
+            
+            # Device settings
+            device = config['training'].get('device', None)
+        else:
+            # Initialize from direct parameters
+            self.num_classes = num_classes if num_classes is not None else 1000
+            self.model_size = model_size
+            self.learning_rate = learning_rate
+            self.weight_decay = weight_decay
+            self.num_epochs = num_epochs
+            self.batch_size = batch_size
+            self.num_workers = num_workers
+            self.pretrained = pretrained
+            self.freeze_backbone = freeze_backbone
+
+        # Set device (common for both initialization methods)
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
@@ -310,33 +358,88 @@ class LSNetClassifier:
             logger.info(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
             
         # Initialize model
-        self.model = LSNet(num_classes=num_classes, model_size=model_size)
+        self.model = LSNet(num_classes=self.num_classes, model_size=self.model_size)
         self.model.to(self.device)
         
         # Load pre-trained weights if requested
-        if pretrained:
+        if self.pretrained:
             self._load_pretrained_weights()
             
         # Freeze backbone if requested
-        if freeze_backbone:
+        if self.freeze_backbone:
             self._freeze_backbone()
         
-        # Define optimizer
-        self.optimizer = optim.AdamW(
-            self.model.parameters(), 
-            lr=learning_rate, 
-            weight_decay=weight_decay
-        )
-        
-        # Define scheduler
-        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, 
-            T_max=num_epochs, 
-            eta_min=learning_rate * 0.01
-        )
-        
-        # Define loss function
-        self.criterion = nn.CrossEntropyLoss()
+        # Initialize optimizer, scheduler, and loss function
+        if config is not None:
+            # Config-based initialization
+            optimizer_name = config['training']['optimizer'].get('name', 'adam').lower()
+            scheduler_name = config['training']['scheduler'].get('name', 'cosine_annealing').lower()
+            loss_name = config['training']['loss'].get('name', 'cross_entropy').lower()
+            
+            # Set optimizer
+            if optimizer_name == 'adam':
+                self.optimizer = optim.AdamW(
+                    self.model.parameters(), 
+                    lr=self.learning_rate, 
+                    weight_decay=self.weight_decay
+                )
+            elif optimizer_name == 'sgd':
+                self.optimizer = optim.SGD(
+                    self.model.parameters(),
+                    lr=self.learning_rate,
+                    momentum=0.9,
+                    weight_decay=self.weight_decay
+                )
+            else:
+                raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+            
+            # Set scheduler
+            if scheduler_name == 'cosine_annealing':
+                self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimizer, 
+                    T_max=self.num_epochs,
+                    eta_min=config['training']['scheduler'].get('min_lr', self.learning_rate * 0.01)
+                )
+            elif scheduler_name == 'reduce_on_plateau':
+                self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                    self.optimizer,
+                    mode='max',
+                    factor=config['training']['scheduler'].get('factor', 0.5),
+                    patience=config['training']['scheduler'].get('patience', 5),
+                    verbose=True
+                )
+            elif scheduler_name == 'step':
+                self.scheduler = optim.lr_scheduler.StepLR(
+                    self.optimizer,
+                    step_size=config['training']['scheduler'].get('step_size', 30),
+                    gamma=config['training']['scheduler'].get('gamma', 0.1)
+                )
+            else:
+                raise ValueError(f"Unsupported scheduler: {scheduler_name}")
+            
+            # Set loss function
+            if loss_name == 'cross_entropy':
+                self.criterion = nn.CrossEntropyLoss()
+            elif loss_name == 'focal_loss':
+                self.criterion = FocalLoss(
+                    alpha=config['training']['loss'].get('alpha', 0.25),
+                    gamma=config['training']['loss'].get('gamma', 2.0)
+                )
+            else:
+                raise ValueError(f"Unsupported loss function: {loss_name}")
+        else:
+            # Default initialization
+            self.optimizer = optim.AdamW(
+                self.model.parameters(), 
+                lr=self.learning_rate, 
+                weight_decay=self.weight_decay
+            )
+            self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, 
+                T_max=self.num_epochs, 
+                eta_min=self.learning_rate * 0.01
+            )
+            self.criterion = nn.CrossEntropyLoss()
         
         # Define image transformations
         self.transform = transforms.Compose([
@@ -384,14 +487,22 @@ class LSNetClassifier:
         Train the model using DataLoader objects.
         
         Args:
-            train_loader: DataLoader for training data
-            val_loader: DataLoader for validation data (optional)
+            train_loader: Training DataLoader
+            val_loader: Validation DataLoader
             tb_logger: TensorBoard logger instance for metrics visualization
             **kwargs: Additional training parameters
             
         Returns:
             Validation accuracy or training accuracy
         """
+        # Enable anomaly detection in debug mode
+        if os.environ.get('DEBUG', '0') == '1':
+            torch.autograd.set_detect_anomaly(True)
+            logger.info("Gradient anomaly detection enabled")
+        
+        # Initialize mixed precision training
+        scaler = torch.cuda.amp.GradScaler()
+        
         # Verify model is on the correct device
         if next(self.model.parameters()).device != self.device:
             logger.warning(f"Model is not on the expected device {self.device}. Moving it now.")
@@ -412,71 +523,80 @@ class LSNetClassifier:
             correct = 0
             total = 0
             
-            # Process training data
-            for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.num_epochs}")):
-                # Apply transformations to images
-                transformed_images = []
-                for img in images:
-                    transformed_images.append(self.transform(img))
-                
-                # Stack images into a batch
-                images_tensor = torch.stack(transformed_images)
-                
+            # Process training data with progress bar
+            pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
+            for batch_idx, (images, labels) in enumerate(pbar):
                 # Move data to device
-                images_tensor = images_tensor.to(self.device, non_blocking=True)
+                images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
                 
                 # Zero the parameter gradients
-                self.optimizer.zero_grad()
+                self.optimizer.zero_grad(set_to_none=True)
                 
-                # Forward pass
-                outputs = self.model(images_tensor)
-                loss = self.criterion(outputs, labels)
-                
-                # Backward pass and optimize
-                loss.backward()
-                self.optimizer.step()
-                
-                # Statistics
-                running_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                
-                # Log batch progress
-                if (batch_idx + 1) % 10 == 0:
-                    logger.info(f"Epoch [{epoch+1}/{self.num_epochs}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+                try:
+                    # Forward pass with automatic mixed precision
+                    with torch.cuda.amp.autocast():
+                        outputs = self.model(images)
+                        loss = self.criterion(outputs, labels)
+                    
+                    # Backward pass and optimize with gradient scaling
+                    scaler.scale(loss).backward()
+                    
+                    # Unscale gradients for any gradient clipping
+                    scaler.unscale_(self.optimizer)
+                    
+                    # Gradient clipping
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    
+                    # Optimizer step with gradient scaling
+                    scaler.step(self.optimizer)
+                    scaler.update()
+                    
+                    # Statistics
+                    running_loss += loss.item()
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+                    
+                    # Update progress bar
+                    pbar.set_postfix({
+                        'loss': running_loss / (batch_idx + 1),
+                        'acc': 100. * correct / total
+                    })
+                    
+                    # Log batch metrics to TensorBoard
+                    if tb_logger:
+                        tb_logger.log_metrics({
+                            'train/batch_loss': loss.item(),
+                            'train/batch_accuracy': 100. * correct / total,
+                        }, step=epoch * len(train_loader) + batch_idx)
+                    
+                except RuntimeError as e:
+                    if "out of memory" in str(e):
+                        if hasattr(torch.cuda, 'empty_cache'):
+                            torch.cuda.empty_cache()
+                        logger.error(f"GPU out of memory: {str(e)}")
+                        continue
+                    else:
+                        raise e
             
             # Calculate epoch statistics
             epoch_loss = running_loss / total if total > 0 else 0
             epoch_accuracy = correct / total if total > 0 else 0
             
-            # Log metrics to standard logger
+            # Log metrics
             logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_accuracy:.4f}")
             
-            # Log metrics to TensorBoard if available
             if tb_logger:
                 tb_logger.log_metrics({
-                    'train/loss': epoch_loss,
-                    'train/accuracy': epoch_accuracy
+                    'train/epoch_loss': epoch_loss,
+                    'train/epoch_accuracy': epoch_accuracy,
+                    'train/learning_rate': self.optimizer.param_groups[0]['lr']
                 }, step=epoch)
             
             # Validation
-            val_accuracy = None
             if val_loader is not None:
                 val_accuracy = self.evaluate(val_loader, tb_logger, epoch)
-                
-                # Log validation metrics to standard logger
-                logger.info(f"Validation Accuracy: {val_accuracy:.4f}")
-                
-                # Log validation metrics to TensorBoard if available
-                if tb_logger:
-                    tb_logger.log_metrics({
-                        'val/accuracy': val_accuracy
-                    }, step=epoch)
-                
-                # Learning rate scheduling
-                self.scheduler.step()
                 
                 # Early stopping check
                 if val_accuracy > best_val_accuracy:
@@ -490,15 +610,22 @@ class LSNetClassifier:
                         'epoch': epoch,
                         'model_state_dict': self.model.state_dict(),
                         'optimizer_state_dict': self.optimizer.state_dict(),
+                        'scaler_state_dict': scaler.state_dict(),
                         'val_accuracy': val_accuracy,
                         'train_accuracy': epoch_accuracy,
                     }, model_path)
-                    logger.info(f"Saved best model with validation accuracy: {val_accuracy:.4f} to {model_path}")
+                    logger.info(f"Saved best model with validation accuracy: {val_accuracy:.4f}")
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
                         early_stopping = True
                         logger.info(f"Early stopping triggered after {epoch+1} epochs")
+            
+            # Learning rate scheduling
+            if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.scheduler.step(val_accuracy if val_loader is not None else epoch_loss)
+            else:
+                self.scheduler.step()
         
         return best_val_accuracy if val_loader is not None else epoch_accuracy
     
@@ -567,7 +694,7 @@ class LSNetClassifier:
         Evaluate the model on validation set.
         
         Args:
-            val_loader: DataLoader for validation data
+            val_loader: Validation DataLoader
             tb_logger: TensorBoard logger instance for metrics visualization
             step: Current step for logging
             
@@ -587,22 +714,14 @@ class LSNetClassifier:
         all_preds = []
         all_labels = []
         
-        with torch.no_grad():
+        with torch.no_grad(), torch.cuda.amp.autocast():
             for images, labels in tqdm(val_loader, desc="Validation"):
-                # Apply transformations to images
-                transformed_images = []
-                for img in images:
-                    transformed_images.append(self.transform(img))
-                
-                # Stack images into a batch
-                images_tensor = torch.stack(transformed_images)
-                
                 # Move data to device
-                images_tensor = images_tensor.to(self.device, non_blocking=True)
+                images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
                 
                 # Forward pass
-                outputs = self.model(images_tensor)
+                outputs = self.model(images)
                 loss = self.criterion(outputs, labels)
                 
                 # Statistics

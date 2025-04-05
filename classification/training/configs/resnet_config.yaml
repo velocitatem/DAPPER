@@ -8,6 +8,8 @@ model:
   num_epochs: 50
   dropout_rate: 0.2
 
+
+
 # Training parameters
 training:
   batch_size: 128

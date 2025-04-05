@@ -34,7 +34,9 @@ class HogClassifier:
         classifier: str = "logistic_regression", 
         hog_params: Optional[Dict[str, Any]] = None,
         classifier_params: Optional[Dict[str, Any]] = None,
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        batch_size: int = 32,
+        num_workers: int = 4
     ):
         """
         Initialize the HOG classifier.
@@ -45,10 +47,14 @@ class HogClassifier:
             hog_params: Parameters for HOG feature extraction
             classifier_params: Parameters for the classifier
             device: Device to use for computation ('cuda' or 'cpu')
+            batch_size: Batch size for training
+            num_workers: Number of workers for data loading
         """
         self.num_classes = num_classes
         self.classifier_type = classifier
         self.device = torch.device(device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         
         # Default HOG parameters
         self.hog_params = {
@@ -90,15 +96,22 @@ class HogClassifier:
         # Initialize HOG descriptor
         self.hog = cv2.HOGDescriptor(self.win_size, self.block_size, self.block_stride, self.cell_size, self.nbins)
         
+        logger.info(f"Initialized HOG classifier with {num_classes} classes on device: {self.device}")
+        if self.device.type == 'cuda':
+            logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+            logger.info(f"CUDA Version: {torch.version.cuda}")
+            logger.info(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+        
     def preprocess_image(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
         Preprocess an image for HOG feature extraction.
+        Resizes, converts to grayscale, and ensures uint8 format.
         
         Args:
             image: Image as PIL Image, PyTorch tensor, or numpy array
             
         Returns:
-            Preprocessed image as a numpy array
+            Preprocessed image as a numpy array (uint8, grayscale)
         """
         # Convert to PIL Image if needed
         if isinstance(image, torch.Tensor):
@@ -106,34 +119,60 @@ class HogClassifier:
             if image.dim() == 4:  # Batch of images: [batch, channels, height, width]
                 image = image[0]  # Take first image
             
-            # Convert to numpy and then to PIL Image
-            img_np = image.permute(1, 2, 0).cpu().numpy()
+            # De-normalize if needed (assuming standard ImageNet normalization)
+            # Inverse normalization: image = std * image + mean
+            mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
             
-            # Ensure the values are in the correct range for uint8
-            if img_np.max() <= 1.0:
-                img_np = (img_np * 255).astype(np.uint8)
-            else:
-                img_np = img_np.astype(np.uint8)
+            # Check if tensor is on GPU and move mean/std there if necessary
+            if image.is_cuda:
+                mean = mean.to(image.device)
+                std = std.to(image.device)
                 
+            img_tensor = image * std + mean
+            img_tensor = torch.clamp(img_tensor, 0, 1) # Clamp values to [0, 1]
+
+            # Convert to numpy and then to PIL Image
+            img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+            img_np = (img_np * 255).astype(np.uint8)
             image = Image.fromarray(img_np)
         elif isinstance(image, np.ndarray):
+            # Ensure uint8 if numpy array is input
+            if image.dtype != np.uint8:
+                 # Assuming float input is in [0, 1] range if not uint8
+                if image.max() <= 1.0:
+                    image = (image * 255).astype(np.uint8)
+                else:
+                    image = image.astype(np.uint8) # Direct cast if values are already 0-255
             image = Image.fromarray(image)
             
-        # Apply transformations
-        if not isinstance(image, torch.Tensor):
-            image = self.transform(image)
+        # Resize the image (using PIL)
+        # Use the image_size from hog_params for resizing
+        resize_transform = transforms.Resize(self.hog_params["image_size"])
+        image = resize_transform(image)
             
-        # Convert to numpy array for HOG
-        img_np = image.permute(1, 2, 0).cpu().numpy()
+        # Convert PIL image to numpy array for cv2 operations
+        img_np = np.array(image)
         
-        # Convert to grayscale if needed
-        if img_np.shape[2] == 3:
-            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-            
-        # Ensure the image is in the correct format for HOG
-        img_np = (img_np * 255).astype(np.uint8)
+        # Convert to grayscale if needed (ensure it's uint8 before cvtColor)
+        if len(img_np.shape) == 3 and img_np.shape[2] == 3:
+            img_np_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        elif len(img_np.shape) == 2: # Already grayscale
+             img_np_gray = img_np
+        else: # Handle unexpected shapes if necessary
+             raise ValueError(f"Unexpected image shape: {img_np.shape}")
         
-        return img_np
+        # Ensure the final output is uint8
+        if img_np_gray.dtype != np.uint8:
+            # This case should ideally not happen if conversions above are correct
+            # Add a safeguard conversion if needed
+            if img_np_gray.max() <= 1.0 and img_np_gray.min() >=0.0:
+                 img_np_gray = (img_np_gray * 255).astype(np.uint8)
+            else:
+                # Clamp and convert if values might be outside 0-255
+                img_np_gray = np.clip(img_np_gray, 0, 255).astype(np.uint8)
+
+        return img_np_gray
     
     def extract_hog_features(self, image: np.ndarray) -> np.ndarray:
         """
@@ -150,192 +189,142 @@ class HogClassifier:
         return features.flatten()
     
     def train_model(
-        self, 
-        train_dataset, 
-        val_dataset=None, 
+        self,
+        train_loader,
+        val_loader=None,
         tb_logger=None,
         **kwargs
     ):
         """
-        Train the model using dataset objects.
+        Train the HOG-based classifier using DataLoader objects.
         
         Args:
-            train_dataset: Training dataset
-            val_dataset: Validation dataset
-            tb_logger: Logger instance for TensorBoard logging
+            train_loader: Training DataLoader
+            val_loader: Validation DataLoader
+            tb_logger: TensorBoard logger instance for metrics visualization
             **kwargs: Additional training parameters
             
         Returns:
             Validation accuracy or training accuracy
         """
-        # Extract features from training data
+        logger.info("Extracting HOG features from training data...")
+        
+        # Extract features and labels from training data
         X_train = []
         y_train = []
         
-        # Use standard logger for progress information
-        logger.info("Processing training data")
-        for images, labels in tqdm(train_dataset, desc="Processing training data"):
+        for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc="Processing training data")):
             # Process each image in the batch
             for img, label in zip(images, labels):
-                # Preprocess image
+                # Preprocess image and extract HOG features
                 img_np = self.preprocess_image(img)
-                
-                # Extract HOG features
                 features = self.extract_hog_features(img_np)
                 
                 # Store features and label
                 X_train.append(features)
+                y_train.append(label.item())
                 
-                # Handle the label
-                if isinstance(label, torch.Tensor):
-                    if label.numel() == 1:  # Single element tensor
-                        label = label.item()
-                    else:
-                        label = label[0].item()
+            # Log progress
+            if (batch_idx + 1) % 10 == 0:
+                logger.info(f"Processed {(batch_idx + 1) * train_loader.batch_size} images")
                 
-                y_train.append(label)
+            # Log to TensorBoard if available
+            if tb_logger:
+                tb_logger.log_metrics({
+                    'train/processed_images': (batch_idx + 1) * train_loader.batch_size
+                }, step=batch_idx)
         
         # Convert to numpy arrays
         X_train = np.array(X_train)
         y_train = np.array(y_train)
         
-        # Scale features
-        X_train = self.model.steps[0][1].fit_transform(X_train)
+        logger.info(f"Training data shape: {X_train.shape}")
         
-        # Train classifier
-        logger.info(f"Training {self.classifier_type} classifier")
-        self.model.steps[1][1].fit(X_train, y_train)
+        # Train the model using scikit-learn's fit method
+        logger.info(f"Training {self.classifier_type} classifier...")
+        start_time = time.time()
+        self.model.fit(X_train, y_train)
+        training_time = time.time() - start_time
         
-        # Evaluate on training set
-        y_pred = self.model.predict(X_train)
-        train_accuracy = np.mean(y_pred == y_train)
-        
+        # Calculate training accuracy
+        train_predictions = self.model.predict(X_train)
+        train_accuracy = np.mean(train_predictions == y_train)
+        logger.info(f"Training completed in {training_time:.2f} seconds")
         logger.info(f"Training accuracy: {train_accuracy:.4f}")
         
-        # Log metrics if TensorBoard logger provided
-        tb_logger.log_metrics({
-            'train/accuracy': train_accuracy
-        })
+        # Log training metrics
+        if tb_logger:
+            tb_logger.log_metrics({
+                'train/accuracy': train_accuracy,
+                'train/time': training_time
+            })
         
         # Evaluate on validation set if provided
-        if val_dataset is not None:
-            return self.evaluate(val_dataset, tb_logger)
+        if val_loader is not None:
+            val_accuracy = self.evaluate(val_loader, tb_logger)
+            return val_accuracy
         
         return train_accuracy
     
-    def inference(self, image, logger=None):
+    def evaluate(self, val_loader, tb_logger=None, step=None):
         """
-        Perform inference on a single image.
+        Evaluate the model on validation set.
         
         Args:
-            image: Input image
-            logger: Optional logger for logging
-            
-        Returns:
-            Predicted class
-        """
-        # Preprocess image
-        img_np = self.preprocess_image(image)
-        
-        # Extract HOG features
-        features = self.extract_hog_features(img_np)
-        
-        # Scale features
-        features = self.model.steps[0][1].transform([features])
-        
-        # Predict class
-        prediction = self.model.predict(features)[0]
-        
-        if logger is not None:
-            logger.info(f"Predicted class: {prediction}")
-        
-        return prediction
-    
-    def predict_proba(self, image, logger=None):
-        """
-        Predict class probabilities for a single image.
-        
-        Args:
-            image: Input image
-            logger: Optional logger for logging
-            
-        Returns:
-            Class probabilities
-        """
-        # Preprocess image
-        img_np = self.preprocess_image(image)
-        
-        # Extract HOG features
-        features = self.extract_hog_features(img_np)
-        
-        # Scale features
-        features = self.model.steps[0][1].transform([features])
-        
-        # Predict probabilities
-        probabilities = self.model.predict_proba(features)[0]
-        
-        if logger is not None:
-            logger.info(f"Class probabilities: {probabilities}")
-        
-        return probabilities
-    
-    def evaluate(self, val_dataset, tb_logger=None):
-        """
-        Evaluate the model on a validation dataset.
-        
-        Args:
-            val_dataset: Validation dataset
-            tb_logger: Logger instance for TensorBoard logging
+            val_loader: Validation DataLoader
+            tb_logger: TensorBoard logger instance for metrics visualization
+            step: Current step for logging
             
         Returns:
             Validation accuracy
         """
-        # Extract features from validation data
+        logger.info("Extracting HOG features from validation data...")
+        
+        # Extract features and labels from validation data
         X_val = []
         y_val = []
         
-        # Use standard logger for progress information
-        logger.info("Processing validation data")
-        for images, labels in tqdm(val_dataset, desc="Processing validation data"):
+        for images, labels in tqdm(val_loader, desc="Processing validation data"):
             # Process each image in the batch
             for img, label in zip(images, labels):
-                # Preprocess image
+                # Preprocess image and extract HOG features
                 img_np = self.preprocess_image(img)
-                
-                # Extract HOG features
                 features = self.extract_hog_features(img_np)
                 
                 # Store features and label
                 X_val.append(features)
-                
-                # Handle the label
-                if isinstance(label, torch.Tensor):
-                    if label.numel() == 1:  # Single element tensor
-                        label = label.item()
-                    else:
-                        label = label[0].item()
-                
-                y_val.append(label)
+                y_val.append(label.item())
         
         # Convert to numpy arrays
         X_val = np.array(X_val)
         y_val = np.array(y_val)
         
-        # Scale features
-        X_val = self.model.steps[0][1].transform(X_val)
+        logger.info(f"Validation data shape: {X_val.shape}")
         
-        # Predict classes
-        y_pred = self.model.predict(X_val)
+        # Make predictions
+        val_predictions = self.model.predict(X_val)
+        val_accuracy = np.mean(val_predictions == y_val)
         
-        # Calculate validation accuracy
-        val_accuracy = np.mean(y_pred == y_val)
+        # Calculate probabilities if the model supports it
+        if hasattr(self.model, 'predict_proba'):
+            val_probabilities = self.model.predict_proba(X_val)
+            
+            # Log detailed metrics if TensorBoard logger is available
+            if tb_logger:
+                # Create confusion matrix
+                cm = confusion_matrix(y_val, val_predictions)
+                
+                # Log metrics
+                tb_logger.log_metrics({
+                    'val/accuracy': val_accuracy,
+                    'val/confusion_matrix': cm
+                }, step=step)
+                
+                # Log classification report
+                report = classification_report(y_val, val_predictions)
+                logger.info("\nClassification Report:\n" + report)
         
         logger.info(f"Validation accuracy: {val_accuracy:.4f}")
-        
-        # Log metrics if TensorBoard logger provided
-        tb_logger.log_metrics({
-            'val/accuracy': val_accuracy
-        })
         
         return val_accuracy
     

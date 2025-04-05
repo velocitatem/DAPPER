@@ -149,10 +149,9 @@ class Logger:
             
             if step is not None:
                 if self.enable_tensorboard and self.writer:
-                    print(f"Logging to TensorBoard: {metric_name} = {value} at step {step}")
                     self.writer.add_scalar(metric_name, value, step)
                     self.writer.flush()  # Ensure data is written to disk
-                self.logger.info(f"{metric_name} at step {step}: {value:.6f}")
+                #self.logger.info(f"{metric_name} at step {step}: {value:.6f}")
             else:
                 self.logger.info(f"{metric_name}: {value:.6f}")
                 
