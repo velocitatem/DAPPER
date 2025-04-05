@@ -1,0 +1,66 @@
+# Classification Project Settings
+
+# Data settings
+data:
+  base_data_dir: "./data"
+  cache_dir: "./data/cache"
+  seed: 2025
+  use_cache: true
+  val_split: 0.2
+  
+  # Dataset settings
+  datasets:
+    - rvl_cdip
+  
+  # DataLoader settings
+  dataloader:
+    batch_size: 128
+    num_workers: 12
+    pin_memory: true
+
+# Model settings
+model:
+  name: "resnet18"  # Options: simple_conv, resnet18, resnet50
+  pretrained: true
+  freeze_backbone: false
+  num_classes: 10
+
+# Training settings
+training:
+  device: "cuda"  # Options: cuda, cpu
+  num_epochs: 50
+  optimizer:
+    name: "adam"  # Options: adam, sgd
+    learning_rate: 0.001
+    weight_decay: 0.0001
+  scheduler:
+    name: "reduce_on_plateau"  # Options: reduce_on_plateau, cosine_annealing, step
+    patience: 5
+    factor: 0.5
+    min_lr: 0.00001
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.001
+  
+  # Loss function
+  loss:
+    name: "cross_entropy"  # Options: cross_entropy, focal_loss
+
+# Experiment tracking
+logging:
+  log_dir: "./logs"
+  experiment_name: null  # Will use timestamp if null
+  tensorboard:
+    enabled: true
+    log_histograms: true
+    log_images: true
+    log_model_graph: true
+  
+# MinIO settings
+minio:
+  endpoint: "localhost:9900"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket_name: "dapper"
+  secure: false 

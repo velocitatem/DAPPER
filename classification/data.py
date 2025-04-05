@@ -24,17 +24,36 @@ import io
 import random
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from torchvision import transforms
+import torch
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
+# Define image augmentation transformations
+pil_transforms = transforms.Compose([
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(degrees=15),  # Increased rotation
+    transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  # Increased color variation
+    transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
+    transforms.RandomAdjustSharpness(sharpness_factor=2, p=0.5),
+    transforms.RandomGrayscale(p=0.2),  # Increased grayscale probability
+    transforms.RandomPerspective(distortion_scale=0.3, p=0.5),  # Increased perspective distortion
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Added translation
+])
 
+tensor_transforms = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.RandomErasing(p=0.2),  # Added random erasing
+    transforms.ToPILImage()
+])
 
 ##
 # @brief Applies data augmentation to an image
 #
-# This function applies various data augmentation techniques to the input image,
-# including rotation, color adjustment, contrast, brightness, and other transformations.
+# This function applies various data augmentation techniques to the input image
+# using torchvision transforms, including rotation, color adjustment, contrast,
+# brightness, and document-specific transformations like blur and perspective changes.
 #
 # @param image The PIL Image object to augment
 # @param augment Whether to apply augmentation (set to False to skip)
@@ -44,48 +63,14 @@ def augment_image(image, augment=True):
     if not augment:
         return image
 
-    # Define augmentation probability
-    aug_prob = 0.5
+    # Apply PIL transforms first
+    augmented_image = pil_transforms(image)
 
-    # Randomly apply augmentations with probability
-    if random.random() < aug_prob:
-        # Random rotation (slight - documents shouldn't be heavily rotated)
-        angle = random.uniform(-5, 5)
-        image = image.rotate(angle, resample=Image.BICUBIC, expand=False)
+    # Then apply tensor transforms
+    augmented_image = tensor_transforms(augmented_image)
 
-    if random.random() < aug_prob:
-        # Random brightness adjustment
-        brightness_factor = random.uniform(0.8, 1.2)
-        image = ImageEnhance.Brightness(image).enhance(brightness_factor)
+    return augmented_image
 
-    if random.random() < aug_prob:
-        # Random contrast adjustment
-        contrast_factor = random.uniform(0.8, 1.2)
-        image = ImageEnhance.Contrast(image).enhance(contrast_factor)
-
-    if random.random() < aug_prob:
-        # Random color/saturation adjustment
-        color_factor = random.uniform(0.8, 1.2)
-        image = ImageEnhance.Color(image).enhance(color_factor)
-
-    if random.random() < 0.3:  # Less aggressive augmentations with lower probability
-        # Random sharpness adjustment
-        sharpness_factor = random.uniform(0.8, 1.5)
-        image = ImageEnhance.Sharpness(image).enhance(sharpness_factor)
-
-    if random.random() < 0.2:  # Document noise simulation
-        # Add slight Gaussian noise or blur to simulate document scanning
-        if random.random() < 0.5:
-            image = image.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.5, 1.0)))
-        else:
-            # Simulate slight JPEG compression artifacts
-            buffer = io.BytesIO()
-            quality = random.randint(85, 95)
-            image.save(buffer, format='JPEG', quality=quality)
-            buffer.seek(0)
-            image = Image.open(buffer)
-
-    return image
 ##
 # @brief Creates additional augmented versions of training images
 #
@@ -103,9 +88,21 @@ def create_augmented_dataset(df, bucket_name, augmentation_factor=2):
 
     augmented_rows = []
 
-    # Ensure source_dataset exists
+    # Ensure source_dataset exists and is properly formatted
     if 'source_dataset' not in df.columns:
         df['source_dataset'] = 'base'
+
+    # Generate global unique IDs for original images if not exists
+    if 'global_id' not in df.columns:
+        df['global_id'] = [f"orig_{i}" for i in range(len(df))]
+
+    # Ensure is_augmented is boolean
+    df['is_augmented'] = False
+
+    # Calculate class weights for balanced augmentation
+    class_counts = df['label'].value_counts()
+    max_count = class_counts.max()
+    class_weights = {cls: max_count/count for cls, count in class_counts.items()}
 
     for i, row in df.iterrows():
         if i % 100 == 0:
@@ -121,9 +118,14 @@ def create_augmented_dataset(df, bucket_name, augmentation_factor=2):
 
         label = row['label']
         source_dataset = row.get('source_dataset', 'base')
+        global_id = row['global_id']
+
+        # Adjust augmentation factor based on class weight
+        class_weight = class_weights.get(label, 1.0)
+        adjusted_factor = int(augmentation_factor * class_weight)
 
         # Create multiple augmented versions
-        for aug_idx in range(augmentation_factor):
+        for aug_idx in range(adjusted_factor):
             # Create a deep copy of the row
             aug_row = row.copy()
 
@@ -135,6 +137,8 @@ def create_augmented_dataset(df, bucket_name, augmentation_factor=2):
             # Track augmentation version and source dataset
             aug_row['aug_version'] = aug_idx + 1
             aug_row['source_dataset'] = f"{source_dataset}_aug{aug_idx + 1}"
+            aug_row['global_id'] = global_id  # Keep track of original image
+            aug_row['is_augmented'] = True
 
             # Add to our augmented dataset
             augmented_rows.append(aug_row)
@@ -147,6 +151,11 @@ def create_augmented_dataset(df, bucket_name, augmentation_factor=2):
 
         # Combine original and augmented datasets
         combined_df = pd.concat([df, augmented_df])
+
+        # Log class distribution after augmentation
+        class_distribution = combined_df['label'].value_counts()
+        logging.info(f"Class distribution after augmentation: {class_distribution.to_dict()}")
+
         return combined_df
     else:
         logging.warning("No images were augmented")
@@ -337,7 +346,7 @@ def get_extra_invoices():
     return invoices[['image', 'label']]
 
 
-def load_base_dataset(chunk_size=1000, total_samples=None, seed=42, apply_augmentation=True):
+def load_base_dataset(chunk_size=1000, total_samples=10_000, seed=42, apply_augmentation=True):
     """
     Progressively loads chunks of the RVL-CDIP dataset into MinIO.
 
@@ -424,7 +433,7 @@ def load_base_dataset(chunk_size=1000, total_samples=None, seed=42, apply_augmen
 
     return pd.concat(loaded_chunks)
 
-train = load_base_dataset(total_samples=50_000, apply_augmentation=True)
+train = load_base_dataset(total_samples=10_000, apply_augmentation=True)
 
 
 ##
@@ -435,6 +444,41 @@ train = load_base_dataset(total_samples=50_000, apply_augmentation=True)
 #
 # @return DataFrame containing processed invoice images and their labels
 #
+
+def get_extra_invoices():
+    logging.info("Downloading extra invoices from Kaggle dataset")
+    path1 = kagglehub.dataset_download("ayoubcherguelaine/company-documents-dataset")
+    df = pd.read_csv(path1+"/company-document-text.csv")
+
+    invoices = df[df['label'] == 'invoice']
+
+    ##
+    # @brief Extracts invoice ID from text description
+    # @param text Text containing invoice ID
+    # @return Integer invoice ID
+    def extract_invoice_id(text):
+        text = text.split()
+        return int(text[3])
+
+    logging.info("Extracting invoice IDs")
+    invoices['invoice_id'] = invoices['text'].apply(extract_invoice_id)
+
+    directory = path1+"/CompanyDocuments/invoices/"
+
+    ##
+    # @brief Loads a PDF file and converts it to an image
+    # @param invoice_id ID of the invoice to load
+    # @return PIL Image object of the first page
+    def load_pdf_as_image(invoice_id):
+        path = f"{directory}invoice_{invoice_id}.pdf"
+        logging.info(f"Converting PDF {path} to image")
+        image = convert_from_path(path)
+        return image[0] if len(image) > 0 else None
+
+    invoices['image'] = invoices['invoice_id'].apply(load_pdf_as_image)
+    logging.info("Finished converting PDFs to images")
+
+    return invoices[['image', 'label']]
 def load_source_1():
     logging.info("Retrieving and processing extra invoices")
     extra_invoices = get_extra_invoices()
@@ -484,8 +528,8 @@ def load_source_3():
     logging.info("Loading documents from lmms-lab/DocVQA dataset")
 
     try:
-        # Load the dataset from Hugging Face
-        dataset = load_dataset("lmms-lab/DocVQA", split="validation")
+        # Load the dataset from Hugging Face with the correct config
+        dataset = load_dataset("lmms-lab/DocVQA", "DocVQA", split="validation")
         logging.info(f"Loaded DocVQA dataset with {len(dataset)} samples")
 
         # Create a mapping from question_types to our document classes
@@ -527,8 +571,20 @@ def load_source_3():
                 if class_counts[label] >= max_per_class:
                     continue
 
-                # Get the image
-                image = Image.open(io.BytesIO(item["image"]["bytes"]))
+                # Get the image - handle different possible formats
+                if isinstance(item["image"], dict) and "bytes" in item["image"]:
+                    # If image is a dict with bytes
+                    image = Image.open(io.BytesIO(item["image"]["bytes"]))
+                elif isinstance(item["image"], Image.Image):
+                    # If image is already a PIL Image
+                    image = item["image"]
+                elif hasattr(item["image"], "convert"):
+                    # If image is a PIL Image but not recognized as such
+                    image = item["image"]
+                else:
+                    # Skip if we can't handle this image format
+                    logging.warning(f"Unrecognized image format: {type(item['image'])}")
+                    continue
 
                 # Add to our data list
                 data_list.append({
@@ -684,8 +740,8 @@ def load_source_4():
 extra_sources = [
     load_source_1,
     load_source_2,
-    load_source_3,
-    load_source_4, # alghough
+    ##load_source_3,
+    #load_source_4, # alghough
 ]
 
 logging.info("Loading extra sources")
@@ -698,6 +754,40 @@ sources_dfs = pd.concat(sources_dfs)
 logging.info("Merging datasets")
 combined_data = pd.concat([train, sources_dfs])
 
+# Ensure all required columns exist and handle NaN values
+if 'is_augmented' not in combined_data.columns:
+    # First set everything to False
+    combined_data['is_augmented'] = False
+    # Then mark augmented images based on source_dataset
+    aug_mask = combined_data['source_dataset'].str.contains('_aug', na=False)
+    combined_data.loc[aug_mask, 'is_augmented'] = True
+
+# Fill any NaN values in is_augmented with False to ensure we have only boolean values
+combined_data['is_augmented'] = combined_data['is_augmented'].fillna(False).astype(bool)
+
+# Reset global_id column to ensure uniqueness
+if 'global_id' in combined_data.columns:
+    combined_data = combined_data.drop('global_id', axis=1)
+
+# Generate unique global IDs for original images
+original_mask = ~combined_data['is_augmented']
+combined_data.loc[original_mask, 'global_id'] = [f"orig_{i}" for i in range(sum(original_mask))]
+
+# Propagate global IDs to augmented versions based on source_dataset
+for idx, row in combined_data[original_mask].iterrows():
+    source_dataset = row['source_dataset']
+    if pd.isna(source_dataset):
+        continue
+    # Find augmentations of this original image
+    aug_pattern = f"{source_dataset}_aug"
+    aug_mask = combined_data['source_dataset'].str.startswith(aug_pattern, na=False)
+    if aug_mask.any():
+        combined_data.loc[aug_mask, 'global_id'] = row['global_id']
+
+# Fill any missing global_ids with unique values
+missing_global_id = combined_data['global_id'].isna()
+combined_data.loc[missing_global_id, 'global_id'] = [f"unknown_{i}" for i in range(sum(missing_global_id))]
+
 gc.collect()
 
 # Split into train and test sets (80/20 split)
@@ -706,15 +796,76 @@ from sklearn.model_selection import train_test_split
 
 # Ensure all labels are of the same type (convert 'invoice' to 11 like in train.py)
 combined_data['label_int'] = combined_data['label'].apply(lambda x: 11 if x == 'invoice' else int(x))
-# remove duplicates
-combined_data = combined_data.drop_duplicates(subset=['image'])
-train_final, test_final = train_test_split(combined_data, test_size=0.2, random_state=42, stratify=combined_data['label_int'])
 
+# Get only the original images for splitting
+original_images = combined_data[~combined_data['is_augmented']]
+
+# Verify each original image has exactly one unique global_id
+unique_check = original_images.groupby('global_id').size()
+if (unique_check > 1).any():
+    duplicated_ids = unique_check[unique_check > 1].index.tolist()
+    logging.warning(f"Found {len(duplicated_ids)} global_ids with multiple original images. Fixing...")
+
+    # For any duplicated global_ids, reassign with new unique IDs
+    for gid in duplicated_ids:
+        dupe_indices = original_images[original_images['global_id'] == gid].index
+        for i, idx in enumerate(dupe_indices[1:], 1):  # Skip first occurrence
+            original_images.loc[idx, 'global_id'] = f"{gid}_dupe_{i}"
+            # Update in combined_data as well
+            combined_data.loc[idx, 'global_id'] = f"{gid}_dupe_{i}"
+
+# Split original images with stratification
+train_original, test_original = train_test_split(
+    original_images,
+    test_size=0.2,
+    random_state=42,
+    stratify=original_images['label_int']
+)
+
+# Get the global_ids for train and test sets
+train_global_ids = set(train_original['global_id'])
+test_global_ids = set(test_original['global_id'])
+
+# Double-check no overlap between train and test global_ids
+if train_global_ids.intersection(test_global_ids):
+    raise ValueError(f"Split failed - found {len(train_global_ids.intersection(test_global_ids))} overlapping global_ids")
+
+# Now, for each original image in train, get its augmented versions
+train_augmented = combined_data[
+    combined_data['is_augmented'] &
+    combined_data['global_id'].isin(train_global_ids)
+]
+
+# For each original image in test, get its augmented versions
+test_augmented = combined_data[
+    combined_data['is_augmented'] &
+    combined_data['global_id'].isin(test_global_ids)
+]
+
+# Combine original and augmented images
+train_final = pd.concat([train_original, train_augmented])
+test_final = pd.concat([test_original, test_augmented])
+
+# Verify no leakage
+train_global_ids = set(train_final['global_id'])
+test_global_ids = set(test_final['global_id'])
+leakage = train_global_ids.intersection(test_global_ids)
+if leakage:
+    logging.error(f"Data leakage detected! Found {len(leakage)} images with same global_id in both train and test sets")
+    raise ValueError("Data leakage detected in train/test split")
+
+# Log detailed statistics
 logging.info(f"Train set size: {len(train_final)}, Test set size: {len(test_final)}")
+logging.info(f"Original images in train: {len(train_original)}, augmented: {len(train_augmented)}")
+logging.info(f"Original images in test: {len(test_original)}, augmented: {len(test_augmented)}")
 
 # Log class distribution after augmentation
 class_distribution = train_final['label_int'].value_counts().sort_index()
 logging.info(f"Final class distribution after augmentation: {class_distribution.to_dict()}")
+
+# Calculate and log class balance metrics
+class_balance = class_distribution / class_distribution.sum()
+logging.info(f"Class balance ratios: {class_balance.to_dict()}")
 
 logging.info("Saving datasets as csv")
 train_final.to_csv("train.csv", index=False)

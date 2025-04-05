@@ -20,6 +20,9 @@ from PIL import Image
 import pandas as pd
 import io
 import logging
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Set up logging
 logging.basicConfig(
@@ -115,12 +118,14 @@ transformations = transforms.Compose([
 # Load data from CSV files
 train_df = pd.read_csv('train.csv')
 test_df = pd.read_csv('test.csv')
+validation_df = train_df.sample(frac=0.2, random_state=42)
 
 # Determine the number of unique classes in the dataset
 num_classes = train_df['label'].apply(lambda x: 11 if x == 'invoice' else int(x)).nunique()
 
-# Create dataset objects for training and testing
+# Create dataset objects for training, validation and testing
 train_dataset = MinioImageDataset(train_df, bucket_name='dapper', transform=transformations)
+validation_dataset = MinioImageDataset(validation_df, bucket_name='dapper', transform=transformations)
 test_dataset = MinioImageDataset(test_df, bucket_name='dapper', transform=transformations)
 
 ##
@@ -131,24 +136,26 @@ test_dataset = MinioImageDataset(test_df, bucket_name='dapper', transform=transf
 #
 train_loader = DataLoader(
     train_dataset,
-    batch_size=100,        # Number of samples per batch
-    shuffle=True,          # Shuffle data for each epoch
-    num_workers=12,        # Number of subprocesses for data loading
-    pin_memory=True        # Pin memory for faster data transfer to GPU
+    batch_size=64,        # Reduced batch size for better generalization
+    shuffle=True,
+    num_workers=12,
+    pin_memory=True
 )
 
-##
-# @brief DataLoader for test data
-#
-# Creates a DataLoader for efficiently loading test data in batches.
-# Uses same batch size as training loader but without shuffling.
-#
+validation_loader = DataLoader(
+    validation_dataset,
+    batch_size=64,
+    shuffle=False,
+    num_workers=12,
+    pin_memory=True
+)
+
 test_loader = DataLoader(
     test_dataset,
-    batch_size=100,        # Number of samples per batch
-    shuffle=False,         # No need to shuffle test data
-    num_workers=12,        # Number of subprocesses for data loading
-    pin_memory=True        # Pin memory for faster data transfer to GPU
+    batch_size=64,
+    shuffle=False,
+    num_workers=12,
+    pin_memory=True
 )
 
 ##
@@ -163,15 +170,22 @@ test_loader = DataLoader(
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logging.info(f"Using device: {device}")
 
-##
+###
 # @brief Initialize the model architecture
 #
 # Uses a pre-trained ResNet18 model and adapts it for document classification
 # by replacing the final fully connected layer to match our number of classes.
 #
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # Load pre-trained weights
-model.fc = nn.Linear(model.fc.in_features, num_classes)  # Replace final layer
-model = model.to(device)  # Move model to GPU if available
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+# Add more dropout and regularization
+model.fc = nn.Sequential(
+    nn.Dropout(0.7),  # Increased dropout
+    nn.Linear(model.fc.in_features, 512),
+    nn.ReLU(),
+    nn.Dropout(0.5),
+    nn.Linear(512, num_classes)
+)
+model = model.to(device)
 
 ##
 # @brief Loss function and optimizer
@@ -179,15 +193,17 @@ model = model.to(device)  # Move model to GPU if available
 # Uses CrossEntropyLoss for multi-class classification and Adam optimizer
 # with a learning rate of 1e-4 for stable training.
 #
-criterion = nn.CrossEntropyLoss()  # Standard loss for classification tasks
-optimizer = optim.Adam(model.parameters(), lr=1e-4)  # Adam optimizer with learning rate 1e-4
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2, verbose=True)
 
-# Training and evaluation function
 def evaluate(model, dataloader, criterion, device):
     model.eval()
     total_loss = 0.0
     correct = 0
     total_samples = 0
+    all_preds = []
+    all_labels = []
 
     with torch.no_grad():
         for images, labels in dataloader:
@@ -199,16 +215,25 @@ def evaluate(model, dataloader, criterion, device):
             _, predicted = torch.max(outputs, 1)
             correct += (predicted == labels).sum().item()
             total_samples += labels.size(0)
+            
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
     avg_loss = total_loss / total_samples
     accuracy = correct / total_samples * 100
-    return avg_loss, accuracy
+    return avg_loss, accuracy, all_preds, all_labels
 
-# Training loop
-num_epochs = 5
-best_test_accuracy = 0
+# Training loop with early stopping
+num_epochs = 50
+best_validation_accuracy = 0
+patience = 5
+patience_counter = 0
+early_stopping = False
 
 for epoch in range(num_epochs):
+    if early_stopping:
+        break
+
     # Training phase
     model.train()
     train_loss = 0.0
@@ -222,6 +247,10 @@ for epoch in range(num_epochs):
         outputs = model(images)
         loss = criterion(outputs, labels)
         loss.backward()
+        
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer.step()
 
         train_loss += loss.item() * images.size(0)
@@ -235,18 +264,58 @@ for epoch in range(num_epochs):
     train_loss = train_loss / train_total
     train_accuracy = train_correct / train_total * 100
 
-    # Evaluation phase
-    test_loss, test_accuracy = evaluate(model, test_loader, criterion, device)
+    # Validation phase
+    validation_loss, validation_accuracy, _, _ = evaluate(model, validation_loader, criterion, device)
 
+    # Learning rate scheduling
+    scheduler.step(validation_accuracy)
 
+    logging.info(f"Epoch [{epoch+1}/{num_epochs}]")
     logging.info(f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%")
-    logging.info(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
+    logging.info(f"Validation Loss: {validation_loss:.4f}, Validation Accuracy: {validation_accuracy:.2f}%")
 
-    # Save best model
-    if test_accuracy > best_test_accuracy:
-        best_test_accuracy = test_accuracy
-        torch.save(model.state_dict(), 'model.pth')
-        logging.info(f"Model saved with test accuracy: {test_accuracy:.2f}%")
+    # Early stopping check
+    if validation_accuracy > best_validation_accuracy:
+        best_validation_accuracy = validation_accuracy
+        patience_counter = 0
+        # Save best model
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'validation_accuracy': validation_accuracy,
+            'train_accuracy': train_accuracy,
+        }, 'best_model.pth')
+        logging.info(f"New best model saved with validation accuracy: {validation_accuracy:.2f}%")
+    else:
+        patience_counter += 1
+        if patience_counter >= patience:
+            early_stopping = True
+            logging.info(f"Early stopping triggered after {epoch+1} epochs")
+
+# Load best model for final evaluation
+checkpoint = torch.load('best_model.pth')
+model.load_state_dict(checkpoint['model_state_dict'])
+logging.info(f"Loaded best model from epoch {checkpoint['epoch']}")
+
+# Final evaluation on test set
+test_loss, test_accuracy, test_preds, test_labels = evaluate(model, test_loader, criterion, device)
+logging.info(f"Final Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
+
+# Calculate and log confusion matrix
+cm = confusion_matrix(test_labels, test_preds)
+plt.figure(figsize=(12, 8))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix')
+plt.ylabel('True Label')
+plt.xlabel('Predicted Label')
+plt.savefig('confusion_matrix.png')
+plt.close()
+
+# Print detailed classification report
+report = classification_report(test_labels, test_preds)
+logging.info("\nClassification Report:\n" + report)
 
 logging.info("Training completed successfully.")
-logging.info(f"Best test accuracy: {best_test_accuracy:.2f}%")
+logging.info(f"Best validation accuracy: {best_validation_accuracy:.2f}%")
+logging.info(f"Final test accuracy: {test_accuracy:.2f}%")
