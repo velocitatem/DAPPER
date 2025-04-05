@@ -2,6 +2,7 @@ from classification.training.models import BaseModel
 from classification.training.hog import HogClassifier
 from classification.training.cnn import CNNClassifier
 from classification.training.resnet import ResNetClassifier
+from classification.training.lsnet import LSNetClassifier
 from classification.data.loader import get_full_dataset
 from classification.data.minio_handler import MinioManager
 from classification.data.augmentor import Augmentor
@@ -27,6 +28,9 @@ models = {
     "hog": HogClassifier,
     "cnn": CNNClassifier,
     "resnet": ResNetClassifier,
+    "lsnet_t": LSNetClassifier,
+    "lsnet_s": LSNetClassifier,
+    "lsnet_b": LSNetClassifier,
 }
 
 def train_model(model_name, train_dataset, val_dataset, tb_logger=None, **kwargs):
@@ -52,7 +56,7 @@ def train_model(model_name, train_dataset, val_dataset, tb_logger=None, **kwargs
     accuracy = model.train_model(
         train_dataset, 
         val_dataset,
-        logger=tb_logger
+        tb_logger=tb_logger
     )
     
     logger.info(f"Training complete with accuracy {accuracy:.4f}")
@@ -173,7 +177,7 @@ if __name__ == "__main__":
     # Split dataset
     train_df, val_df = train_test_split(
         dataset, 
-        test_size=config['training']['test_size'], 
+        test_size=config['data']['val_split'], 
         random_state=42
     )
     logger.info(f"Split dataset: {len(train_df)} training, {len(val_df)} validation")
@@ -182,8 +186,8 @@ if __name__ == "__main__":
     train_loader, val_loader = create_dataloaders(
         train_df, 
         val_df, 
-        batch_size=config['training']['batch_size'], 
-        num_workers=config['training']['num_workers']
+        batch_size=config['data']['dataloader']['batch_size'], 
+        num_workers=config['data']['dataloader']['num_workers']
     )
     
     # Prepare model arguments based on model type
@@ -199,12 +203,24 @@ if __name__ == "__main__":
         model_kwargs["learning_rate"] = config['model']['learning_rate']
         model_kwargs["num_epochs"] = config['model']['num_epochs']
     elif model_name == "resnet":
-        model_kwargs["model_name"] = config['model'].get('resnet_model', "resnet18")
+        model_kwargs["trained_model_name"] = config['model'].get('resnet_model', "resnet18")
         model_kwargs["pretrained"] = config['model'].get('pretrained', True)
         model_kwargs["learning_rate"] = config['model'].get('learning_rate', 1e-4)
         model_kwargs["weight_decay"] = config['model'].get('weight_decay', 0.01)
         model_kwargs["num_epochs"] = config['model'].get('num_epochs', 50)
         model_kwargs["dropout_rate"] = config['model'].get('dropout_rate', 0.7)
+    elif model_name.startswith("lsnet"):
+        # Extract model size from model name (t, s, or b)
+        model_size = model_name.split('_')[1]
+        model_kwargs["model_size"] = model_size
+        model_kwargs["pretrained"] = config['model'].get('pretrained', False)
+        model_kwargs["freeze_backbone"] = config['model'].get('freeze_backbone', False)
+        model_kwargs["learning_rate"] = config['training']['optimizer'].get('learning_rate', 0.001)
+        model_kwargs["weight_decay"] = config['training']['optimizer'].get('weight_decay', 0.0001)
+        model_kwargs["num_epochs"] = config['training'].get('num_epochs', 100)
+        model_kwargs["batch_size"] = config['data']['dataloader'].get('batch_size', 64)
+        model_kwargs["num_workers"] = config['data']['dataloader'].get('num_workers', 4)
+        model_kwargs["device"] = config['training'].get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
 
     # put to TB info about the dataset
     tb_logger.log_metrics({
@@ -213,6 +229,7 @@ if __name__ == "__main__":
         "dataset/val_samples": len(val_df)
     })
     
+    print(model_name,type(model_name))
     # Train model
     model = train_model(
         model_name, 

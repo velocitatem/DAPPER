@@ -87,7 +87,6 @@ class CNNClassifier:
             input_channels: Number of input channels (1 for grayscale, 3 for RGB)
             learning_rate: Learning rate for the optimizer
             device: Device to use for training ('cuda' or 'cpu')
-            num_epochs: Number of training epochs
         """
         self.num_classes = num_classes
         self.input_channels = input_channels
@@ -180,55 +179,43 @@ class CNNClassifier:
             total = 0
             
             # Process training data
-            for batch_idx, (images, labels) in enumerate(tqdm(train_dataset, desc=f"Epoch {epoch+1}/{self.num_epochs}")):
-                # Process images in the batch
-                processed_images = []
-                processed_labels = []
+            for img, label in tqdm(train_dataset, desc=f"Epoch {epoch+1}/{num_epochs}"):
+                # Apply transform if needed
+                if not isinstance(img, torch.Tensor):
+                    img = self.preprocess_image(img)
+                else:
+                    img = img.to(self.device)
                 
-                # Process each image in the batch
-                for img, label in zip(images, labels):
-                    # Apply transform if needed
-                    if not isinstance(img, torch.Tensor):
-                        img = self.preprocess_image(img)
+                # Handle the label
+                if isinstance(label, torch.Tensor):
+                    if label.numel() == 1:  # Single element tensor
+                        label = label.item()
                     else:
-                        img = img.to(self.device)
-                    
-                    processed_images.append(img)
-                    
-                    # Handle the label
-                    if isinstance(label, torch.Tensor):
-                        if label.numel() == 1:  # Single element tensor
-                            label = label.item()
-                        else:
-                            label = label[0].item()
-                    
-                    processed_labels.append(label)
+                        label = label[0].item()
                 
-                # Stack images into a batch tensor
-                if processed_images:
-                    batch_images = torch.stack(processed_images).to(self.device)
-                    batch_labels = torch.tensor(processed_labels, dtype=torch.long).to(self.device)
-                    
-                    # Zero the parameter gradients
-                    self.optimizer.zero_grad()
-                    
-                    # Forward pass
-                    outputs = self.model(batch_images)
-                    loss = self.criterion(outputs, batch_labels)
-                    
-                    # Backward pass and optimize
-                    loss.backward()
-                    self.optimizer.step()
-                    
-                    # Statistics
-                    running_loss += loss.item()
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += batch_labels.size(0)
-                    correct += (predicted == batch_labels).sum().item()
+                # Convert label to tensor
+                label_tensor = torch.tensor(label, dtype=torch.long).to(self.device)
+                
+                # Zero the parameter gradients
+                self.optimizer.zero_grad()
+                
+                # Forward pass
+                outputs = self.model(img.unsqueeze(0))
+                loss = self.criterion(outputs, label_tensor.unsqueeze(0))
+                
+                # Backward pass and optimize
+                loss.backward()
+                self.optimizer.step()
+                
+                # Statistics
+                running_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += 1
+                correct += (predicted == label_tensor).sum().item()
             
             # Calculate epoch statistics
-            epoch_loss = running_loss / total if total > 0 else 0
-            epoch_accuracy = correct / total if total > 0 else 0
+            epoch_loss = running_loss / total
+            epoch_accuracy = correct / total
             
             # Log metrics if logger provided
             if logger:
@@ -321,45 +308,33 @@ class CNNClassifier:
         
         # Process validation data
         with torch.no_grad():
-            for batch_idx, (images, labels) in enumerate(tqdm(val_dataset, desc="Evaluating")):
-                # Process images in the batch
-                processed_images = []
-                processed_labels = []
+            for img, label in tqdm(val_dataset, desc="Evaluating"):
+                # Apply transform if needed
+                if not isinstance(img, torch.Tensor):
+                    img = self.preprocess_image(img)
+                else:
+                    img = img.to(self.device)
                 
-                # Process each image in the batch
-                for img, label in zip(images, labels):
-                    # Apply transform if needed
-                    if not isinstance(img, torch.Tensor):
-                        img = self.preprocess_image(img)
+                # Handle the label
+                if isinstance(label, torch.Tensor):
+                    if label.numel() == 1:  # Single element tensor
+                        label = label.item()
                     else:
-                        img = img.to(self.device)
-                    
-                    processed_images.append(img)
-                    
-                    # Handle the label
-                    if isinstance(label, torch.Tensor):
-                        if label.numel() == 1:  # Single element tensor
-                            label = label.item()
-                        else:
-                            label = label[0].item()
-                    
-                    processed_labels.append(label)
+                        label = label[0].item()
                 
-                # Stack images into a batch tensor
-                if processed_images:
-                    batch_images = torch.stack(processed_images).to(self.device)
-                    batch_labels = torch.tensor(processed_labels, dtype=torch.long).to(self.device)
-                    
-                    # Forward pass
-                    outputs = self.model(batch_images)
-                    _, predicted = torch.max(outputs.data, 1)
-                    
-                    # Statistics
-                    total += batch_labels.size(0)
-                    correct += (predicted == batch_labels).sum().item()
+                # Convert label to tensor
+                label_tensor = torch.tensor(label, dtype=torch.long).to(self.device)
+                
+                # Forward pass
+                outputs = self.model(img.unsqueeze(0))
+                _, predicted = torch.max(outputs.data, 1)
+                
+                # Statistics
+                total += 1
+                correct += (predicted == label_tensor).sum().item()
         
         # Calculate accuracy
-        accuracy = correct / total if total > 0 else 0
+        accuracy = correct / total
         
         # Log metrics if logger provided
         if logger and step is not None:
@@ -379,8 +354,7 @@ class CNNClassifier:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "num_classes": self.num_classes,
             "input_channels": self.input_channels,
-            "learning_rate": self.learning_rate,
-            "num_epochs": self.num_epochs
+            "learning_rate": self.learning_rate
         }
         torch.save(model_info, path)
     
@@ -396,5 +370,4 @@ class CNNClassifier:
         self.optimizer.load_state_dict(model_info["optimizer_state_dict"])
         self.num_classes = model_info["num_classes"]
         self.input_channels = model_info["input_channels"]
-        self.learning_rate = model_info["learning_rate"]
-        self.num_epochs = model_info.get("num_epochs", 10)  # Default to 10 if not present 
+        self.learning_rate = model_info["learning_rate"] 

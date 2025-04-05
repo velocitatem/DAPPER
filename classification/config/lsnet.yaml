@@ -1,0 +1,60 @@
+# LSNet Configuration
+
+# Data settings
+data:
+  base_data_dir: "./data"
+  cache_dir: "./data/cache"
+  seed: 2025
+  use_cache: true
+  val_split: 0.2
+  
+  # Dataset settings
+  datasets:
+    - rvl_cdip
+    - kaggle_invoices
+    - hf_invoices
+  
+  # DataLoader settings
+  dataloader:
+    batch_size: 32
+    num_workers: 4
+    pin_memory: true
+
+# Model settings
+model:
+  name: "lsnet_t"  # Options: lsnet_t, lsnet_s, lsnet_b
+  pretrained: false
+  freeze_backbone: false
+  num_classes: 16  # Will be automatically set based on dataset
+
+# Training settings
+training:
+  device: "cuda"  # Options: cuda, cpu
+  num_epochs: 50
+  optimizer:
+    name: "adam"  # Options: adam, sgd
+    learning_rate: 0.001
+    weight_decay: 0.0001
+  scheduler:
+    name: "cosine_annealing"  # Options: reduce_on_plateau, cosine_annealing, step
+    patience: 5
+    factor: 0.5
+    min_lr: 0.00001
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.001
+  
+  # Loss function
+  loss:
+    name: "cross_entropy"  # Options: cross_entropy, focal_loss
+
+# Experiment tracking
+logging:
+  log_dir: "./logs"
+  experiment_name: "lsnet_training"  # Will use timestamp if null
+  tensorboard:
+    enabled: true
+    log_histograms: true
+    log_images: true
+    log_model_graph: true 

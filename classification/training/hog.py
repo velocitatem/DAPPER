@@ -219,20 +219,20 @@ class HogClassifier:
         
         # Evaluate on validation set if provided
         if val_dataset is not None:
-            return self.evaluate(val_dataset, logger)
+            return self.evaluate(val_dataset, tb_logger)
         
         return train_accuracy
     
-    def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray], logger=None) -> int:
+    def inference(self, image, logger=None):
         """
-        Run inference on a single image.
+        Perform inference on a single image.
         
         Args:
-            image: Image to classify
+            image: Input image
             logger: Optional logger for logging
             
         Returns:
-            Predicted class label
+            Predicted class
         """
         # Preprocess image
         img_np = self.preprocess_image(image)
@@ -241,27 +241,26 @@ class HogClassifier:
         features = self.extract_hog_features(img_np)
         
         # Scale features
-        features = self.model.steps[0][1].transform(features.reshape(1, -1))
+        features = self.model.steps[0][1].transform([features])
         
         # Predict class
         prediction = self.model.predict(features)[0]
         
-        # Log prediction if logger provided
-        if logger:
+        if logger is not None:
             logger.info(f"Predicted class: {prediction}")
-            
+        
         return prediction
     
-    def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray], logger=None) -> np.ndarray:
+    def predict_proba(self, image, logger=None):
         """
-        Get class probabilities for an image.
+        Predict class probabilities for a single image.
         
         Args:
-            image: Image to classify
+            image: Input image
             logger: Optional logger for logging
             
         Returns:
-            Array of class probabilities
+            Class probabilities
         """
         # Preprocess image
         img_np = self.preprocess_image(image)
@@ -270,25 +269,23 @@ class HogClassifier:
         features = self.extract_hog_features(img_np)
         
         # Scale features
-        features = self.model.steps[0][1].transform(features.reshape(1, -1))
+        features = self.model.steps[0][1].transform([features])
         
-        # Get probabilities
+        # Predict probabilities
         probabilities = self.model.predict_proba(features)[0]
         
-        # Log probabilities if logger provided
-        if logger:
+        if logger is not None:
             logger.info(f"Class probabilities: {probabilities}")
-            
+        
         return probabilities
     
-    def evaluate(self, val_dataset, tb_logger=None, step=None):
+    def evaluate(self, val_dataset, tb_logger=None):
         """
         Evaluate the model on a validation dataset.
         
         Args:
             val_dataset: Validation dataset
-            logger: Logger instance for TensorBoard logging
-            step: Step number for logging
+            tb_logger: Logger instance for TensorBoard logging
             
         Returns:
             Validation accuracy
@@ -297,7 +294,9 @@ class HogClassifier:
         X_val = []
         y_val = []
         
-        for images, labels in tqdm(val_dataset, desc="Evaluating"):
+        # Use standard logger for progress information
+        logger.info("Processing validation data")
+        for images, labels in tqdm(val_dataset, desc="Processing validation data"):
             # Process each image in the batch
             for img, label in zip(images, labels):
                 # Preprocess image
@@ -328,14 +327,17 @@ class HogClassifier:
         # Predict classes
         y_pred = self.model.predict(X_val)
         
-        # Calculate accuracy
-        accuracy = np.mean(y_pred == y_val)
+        # Calculate validation accuracy
+        val_accuracy = np.mean(y_pred == y_val)
+        
+        logger.info(f"Validation accuracy: {val_accuracy:.4f}")
         
         # Log metrics if TensorBoard logger provided
-        tb_logger.log_metrics({'val/accuracy': accuracy}, step=step)
-        logger.info(f"Validation accuracy: {accuracy:.4f}")
+        tb_logger.log_metrics({
+            'val/accuracy': val_accuracy
+        })
         
-        return accuracy
+        return val_accuracy
     
     def save(self, path: str, logger=None) -> None:
         """
@@ -359,7 +361,7 @@ class HogClassifier:
         
         joblib.dump(model_info, path)
         
-        if logger:
+        if logger is not None:
             logger.info(f"Model saved to {path}")
     
     def load(self, path: str, logger=None) -> None:
@@ -373,7 +375,7 @@ class HogClassifier:
         model_info = joblib.load(path)
         self.model = model_info["model"]
         self.hog_params = model_info["hog_params"]
-        self.num_classes = model_info["num_classes"]        
+        self.num_classes = model_info["num_classes"]
         self.classifier_type = model_info["classifier_type"]
         
         # Load HOG parameters
@@ -386,5 +388,6 @@ class HogClassifier:
         # Reinitialize HOG descriptor
         self.hog = cv2.HOGDescriptor(self.win_size, self.block_size, self.block_stride, self.cell_size, self.nbins)
         
-        if logger:
+        if logger is not None:
             logger.info(f"Model loaded from {path}")
+    

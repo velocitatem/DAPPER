@@ -24,7 +24,13 @@ def get_standard_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         A configured standard Python logger
     """
     logger = logging.getLogger(name)
-    logger.setLevel(level)
+    
+    # Prevent propagation to root logger to avoid duplicate logs
+    logger.propagate = False
+    
+    # Only set level if not already set
+    if logger.level == logging.NOTSET:
+        logger.setLevel(level)
     
     # Clear existing handlers if any
     if logger.hasHandlers():
@@ -81,7 +87,13 @@ class Logger:
             
         # Set up file logging
         self.logger = logging.getLogger(experiment_name)
-        self.logger.setLevel(logging.DEBUG)
+        
+        # Prevent propagation to root logger to avoid duplicate logs
+        self.logger.propagate = False
+        
+        # Only set level if not already set
+        if self.logger.level == logging.NOTSET:
+            self.logger.setLevel(logging.DEBUG)
         
         # Clear existing handlers if any
         if self.logger.hasHandlers():
@@ -107,7 +119,12 @@ class Logger:
         # Initialize TensorBoard writer if enabled
         self.enable_tensorboard = enable_tensorboard
         if enable_tensorboard:
-            self.writer = SummaryWriter(self.tensorboard_dir)
+            print(f"Initializing TensorBoard writer at {self.tensorboard_dir}")
+            self.writer = SummaryWriter(self.tensorboard_dir, flush_secs=0)  # Flush immediately
+            # Test the writer
+            self.writer.add_scalar('test/initialization', 1.0, 0)
+            self.writer.flush()
+            print("TensorBoard writer initialized and tested")
         else:
             self.writer = None
         
@@ -132,7 +149,9 @@ class Logger:
             
             if step is not None:
                 if self.enable_tensorboard and self.writer:
+                    print(f"Logging to TensorBoard: {metric_name} = {value} at step {step}")
                     self.writer.add_scalar(metric_name, value, step)
+                    self.writer.flush()  # Ensure data is written to disk
                 self.logger.info(f"{metric_name} at step {step}: {value:.6f}")
             else:
                 self.logger.info(f"{metric_name}: {value:.6f}")
@@ -165,6 +184,7 @@ class Logger:
     def close(self):
         """Close the TensorBoard writer"""
         if self.enable_tensorboard and self.writer:
+            self.writer.flush()  # Ensure all data is written to disk
             self.writer.close()
         
     def __del__(self):
@@ -174,6 +194,24 @@ class Logger:
         except:
             pass
             
+    def log_fixed_scalars(self, metrics: Dict[str, float], prefix: str = ""):
+        """
+        Log fixed scalar metrics to TensorBoard without a step parameter.
+        These metrics will appear as constants in TensorBoard.
+        
+        Args:
+            metrics: Dictionary of metrics to log
+            prefix: Prefix for metric names (e.g., 'config/', 'dataset/')
+        """
+        for name, value in metrics.items():
+            metric_name = f"{prefix}{name}" if prefix else name
+            
+            if self.enable_tensorboard and self.writer:
+                print(f"Logging fixed scalar to TensorBoard: {metric_name} = {value}")
+                self.writer.add_scalar(metric_name, value, 0)  # Use step 0 for fixed scalars
+                self.writer.flush()  # Ensure data is written to disk
+            self.logger.info(f"{metric_name}: {value:.6f}")
+
 # Convenience function to get a logger
 def get_logger(name: Optional[str] = None, config: Optional[Dict[str, Any]] = None, 
               enable_tensorboard: bool = False) -> Logger:

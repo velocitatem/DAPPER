@@ -16,4 +16,5 @@ if __name__ == "__main__":
     # any repeated images?
     print(dataset.duplicated(subset=['image']).sum())
     # any repeated labels?
+    # plot the distribution of the labels
 
