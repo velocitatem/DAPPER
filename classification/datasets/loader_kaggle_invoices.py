@@ -1,3 +1,17 @@
+##
+# @file loader_kaggle_invoices.py
+# @package classification.datasets.loader_kaggle_invoices
+# @brief Kaggle Invoices dataset loader for document classification
+#
+# This module provides functionality for loading and processing invoice images
+# from the Kaggle platform. It handles data downloading, PDF conversion,
+# augmentation, and integration with MinIO storage for document classification tasks.
+# source: https://www.kaggle.com/datasets/ayoubcherguelaine/company-documents-dataset
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import pandas as pd
 import kagglehub
 from pdf2image import convert_from_path
@@ -14,7 +28,20 @@ from classification.datasets.cache_loader import load_dataset_from_cache, save_d
 logger_obj = get_logger("kaggle_invoices_loader")
 logger = logger_obj.logger
 
+##
+# @brief Loader class for Kaggle Invoices dataset
+#
+# This class provides methods for loading and processing invoice images from the
+# Kaggle platform. It handles data downloading, PDF conversion, augmentation,
+# and integration with MinIO storage for document classification tasks.
+#
 class KaggleInvoicesLoader:
+    ##
+    # @brief Constructor for KaggleInvoicesLoader class
+    # @param minio_manager MinIO manager instance for data storage
+    # @param augmentor Augmentor instance for data augmentation
+    # @param seed Random seed for reproducibility
+    #
     def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
@@ -22,6 +49,14 @@ class KaggleInvoicesLoader:
         set_global_seed(seed)
         logger.info(f"KaggleInvoicesLoader initialized with seed {seed}")
 
+    ##
+    # @brief Loads and processes the Kaggle Invoices dataset
+    # @param chunk_size Number of samples to process in each chunk
+    # @param total_samples Total number of samples to load (None for all)
+    # @param apply_augmentation Whether to apply data augmentation
+    # @param augmentation_factor Number of augmented versions to create per image
+    # @return DataFrame containing processed dataset
+    #
     def load_dataset(
         self,
         chunk_size: int = 100,
@@ -134,6 +169,11 @@ class KaggleInvoicesLoader:
         
         return final_df
     
+    ##
+    # @brief Extracts invoice ID from text description
+    # @param text Text description containing invoice ID
+    # @return Invoice ID as integer or None if extraction fails
+    #
     def _extract_invoice_id(self, text):
         """Extract invoice ID from text description"""
         try:
@@ -143,6 +183,12 @@ class KaggleInvoicesLoader:
             logger.warning(f"Failed to extract invoice ID from '{text}': {str(e)}")
             return None
     
+    ##
+    # @brief Loads a PDF file and converts it to an image
+    # @param directory Directory containing PDF files
+    # @param invoice_id ID of the invoice to load
+    # @return PIL Image or None if conversion fails
+    #
     def _load_pdf_as_image(self, directory, invoice_id):
         """Load a PDF file and convert it to an image"""
         try:
@@ -154,6 +200,12 @@ class KaggleInvoicesLoader:
             logger.warning(f"Failed to convert PDF for invoice {invoice_id}: {str(e)}")
             return None
 
+##
+# @brief Main execution block for testing dataset loading
+#
+# This block initializes the necessary components and demonstrates
+# how to load and process the Kaggle Invoices dataset.
+#
 if __name__ == "__main__":
     # Configure logging format for direct script execution
     import logging

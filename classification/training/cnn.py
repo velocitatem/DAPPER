@@ -1,3 +1,16 @@
+##
+# @file cnn.py
+# @package classification.training.cnn
+# @brief CNN model implementation for document classification
+#
+# This module provides a Convolutional Neural Network (CNN) implementation for
+# document classification tasks. It includes both the model architecture and
+# training/inference functionality.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,11 +24,22 @@ import joblib
 import os
 import time
 
+##
+# @brief CNN model architecture for document classification
+#
+# This class implements a simple CNN architecture with three convolutional layers,
+# max pooling, and fully connected layers for document classification.
+#
 class CNNModel(nn.Module):
     """
     A simple CNN model for image classification.
     """
     
+    ##
+    # @brief Constructor for CNNModel class
+    # @param num_classes Number of output classes for classification
+    # @param input_channels Number of input channels (1 for grayscale, 3 for RGB)
+    #
     def __init__(self, num_classes: int, input_channels: int = 3):
         """
         Initialize the CNN model.
@@ -41,6 +65,11 @@ class CNNModel(nn.Module):
         # Dropout for regularization
         self.dropout = nn.Dropout(0.5)
 
+    ##
+    # @brief Forward pass through the network
+    # @param x Input tensor of shape [batch_size, channels, height, width]
+    # @return Output tensor of shape [batch_size, num_classes]
+    #
     def forward(self, x):
         """
         Forward pass through the network.
@@ -66,11 +95,25 @@ class CNNModel(nn.Module):
         
         return x
 
+##
+# @brief CNN classifier for document classification
+#
+# This class provides a complete CNN classifier implementation with training,
+# evaluation, and inference capabilities for document classification tasks.
+#
 class CNNClassifier:
     """
     A classifier using a Convolutional Neural Network (CNN) for image classification.
     """
     
+    ##
+    # @brief Constructor for CNNClassifier class
+    # @param num_classes Number of output classes for classification
+    # @param input_channels Number of input channels (1 for grayscale, 3 for RGB)
+    # @param learning_rate Learning rate for the optimizer
+    # @param device Device to use for training ('cuda' or 'cpu')
+    # @param num_epochs Number of training epochs
+    #
     def __init__(
         self, 
         num_classes: int,
@@ -115,6 +158,11 @@ class CNNClassifier:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
+    ##
+    # @brief Preprocess an image for the CNN
+    # @param image Image as PIL Image, PyTorch tensor, or numpy array
+    # @return Preprocessed image as a PyTorch tensor
+    #
     def preprocess_image(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> torch.Tensor:
         """
         Preprocess an image for the CNN.
@@ -152,6 +200,14 @@ class CNNClassifier:
             
         return self.transform(image)
     
+    ##
+    # @brief Train the model using DataLoader objects
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger Logger instance for TensorBoard logging
+    # @param **kwargs Additional training parameters
+    # @return Validation accuracy or training accuracy
+    #
     def train_model(
         self, 
         train_loader, 
@@ -282,6 +338,11 @@ class CNNClassifier:
         
         return best_val_accuracy if val_loader is not None else epoch_accuracy
     
+    ##
+    # @brief Run inference on a single image
+    # @param image Image to classify
+    # @return Predicted class label
+    #
     def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> int:
         """
         Run inference on a single image.
@@ -308,6 +369,11 @@ class CNNClassifier:
             
         return predicted.item()
     
+    ##
+    # @brief Get class probabilities for an image
+    # @param image Image to classify
+    # @return Array of class probabilities
+    #
     def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
         Get class probabilities for an image.
@@ -334,6 +400,13 @@ class CNNClassifier:
             
         return probabilities.cpu().numpy()[0]
     
+    ##
+    # @brief Evaluate the model on validation set
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param step Current step for logging
+    # @return Validation accuracy and loss
+    #
     def evaluate(self, val_loader, tb_logger=None, step=None):
         """
         Evaluate the model on validation set.
@@ -387,6 +460,10 @@ class CNNClassifier:
         
         return accuracy, avg_loss
     
+    ##
+    # @brief Save the trained model to disk
+    # @param path Path to save the model
+    #
     def save(self, path: str) -> None:
         """
         Save the trained model to disk.
@@ -403,6 +480,10 @@ class CNNClassifier:
         }
         torch.save(model_info, path)
     
+    ##
+    # @brief Load a trained model from disk
+    # @param path Path to the saved model
+    #
     def load(self, path: str) -> None:
         """
         Load a trained model from disk.

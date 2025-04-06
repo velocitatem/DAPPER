@@ -1,3 +1,16 @@
+##
+# @file docling.py
+# @package classification.training.docling
+# @brief Document classification using SmolDocling vision-language model
+#
+# This module provides functionality for document classification using the
+# SmolDocling vision-language model. It implements a document classifier
+# that leverages the pre-trained SmolDocling model for feature extraction.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import torch
 import torch.nn as nn
 from transformers import AutoProcessor, AutoModelForVision2Seq
@@ -13,14 +26,32 @@ for param in model.parameters():
 # Assume the encoder outputs a feature vector of dimension 'hidden_size'
 hidden_size = model.config.text_config.hidden_size  # This is an example; actual value may vary
 
-# Define a simple classification head
+##
+# @brief Document classifier using SmolDocling vision-language model
+#
+# This class implements a document classifier that uses the SmolDocling
+# vision-language model as a feature extractor and adds a classification head
+# for document type classification.
+#
 class DocumentClassifier(nn.Module):
+    ##
+    # @brief Constructor for DocumentClassifier class
+    # @param encoder Pre-trained encoder from SmolDocling model
+    # @param hidden_size Dimension of the encoder's hidden state
+    # @param num_classes Number of document classes to classify
+    #
     def __init__(self, encoder, hidden_size, num_classes):
         super().__init__()
         self.encoder = encoder  # Use the encoder portion of SmolDocling
         # A simple linear layer for classification
         self.classifier = nn.Linear(hidden_size, num_classes)
     
+    ##
+    # @brief Forward pass through the network
+    # @param pixel_values Input image tensor
+    # @param attention_mask Attention mask for the model
+    # @return Classification logits
+    #
     def forward(self, pixel_values, attention_mask):
         # Forward pass through the encoder to obtain embeddings.
         # The exact call may need to be adapted based on the model's internals.

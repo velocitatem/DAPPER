@@ -1,3 +1,16 @@
+##
+# @file hog.py
+# @package classification.training.hog
+# @brief Histogram of Oriented Gradients (HOG) classifier for document classification
+#
+# This module implements a document classifier using Histogram of Oriented Gradients (HOG)
+# features with either Logistic Regression or SVM for classification. It provides a
+# lightweight alternative to deep learning approaches for document classification.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import numpy as np
 from skimage.feature import hog
 from skimage import color
@@ -22,12 +35,29 @@ from classification.utils.logger import Logger, get_standard_logger
 
 logger = get_standard_logger("hog_classifier")
 
+##
+# @brief Histogram of Oriented Gradients (HOG) classifier for document classification
+#
+# This class implements a document classifier using HOG features with either
+# Logistic Regression or SVM for classification. It provides a lightweight
+# alternative to deep learning approaches.
+#
 class HogClassifier:
     """
     A simple classifier using Histogram of Oriented Gradients (HOG) features 
     with either Logistic Regression or SVM for classification.
     """
     
+    ##
+    # @brief Constructor for HogClassifier class
+    # @param num_classes Number of document classes
+    # @param classifier Type of classifier to use ("logistic_regression" or "svm")
+    # @param hog_params Parameters for HOG feature extraction
+    # @param classifier_params Parameters for the classifier
+    # @param device Device to use for computation ('cuda' or 'cpu')
+    # @param batch_size Batch size for training
+    # @param num_workers Number of workers for data loading
+    #
     def __init__(
         self, 
         num_classes: int,
@@ -102,6 +132,11 @@ class HogClassifier:
             logger.info(f"CUDA Version: {torch.version.cuda}")
             logger.info(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
         
+    ##
+    # @brief Preprocess an image for HOG feature extraction
+    # @param image Image as PIL Image, PyTorch tensor, or numpy array
+    # @return Preprocessed image as a numpy array (uint8, grayscale)
+    #
     def preprocess_image(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
         Preprocess an image for HOG feature extraction.
@@ -174,6 +209,11 @@ class HogClassifier:
 
         return img_np_gray
     
+    ##
+    # @brief Extract HOG features from an image
+    # @param image Preprocessed image as a numpy array
+    # @return HOG features as a numpy array
+    #
     def extract_hog_features(self, image: np.ndarray) -> np.ndarray:
         """
         Extract HOG features from an image.
@@ -188,6 +228,14 @@ class HogClassifier:
         features = self.hog.compute(image)
         return features.flatten()
     
+    ##
+    # @brief Train the HOG-based classifier using DataLoader objects
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param **kwargs Additional training parameters
+    # @return Validation accuracy or training accuracy
+    #
     def train_model(
         self,
         train_loader,
@@ -261,6 +309,12 @@ class HogClassifier:
         
         return train_accuracy
     
+    ##
+    # @brief Evaluate the model on validation set
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @return Validation accuracy
+    #
     def evaluate(self, val_loader, tb_logger=None): # Removed step argument
         """
         Evaluate the model on validation set.
@@ -325,6 +379,10 @@ class HogClassifier:
         
         return val_accuracy
     
+    ##
+    # @brief Save the trained model to disk
+    # @param path Path to save the model
+    #
     def save(self, path: str) -> None:
         """
         Save the trained model to disk.
@@ -350,6 +408,11 @@ class HogClassifier:
         if logger is not None:
             logger.info(f"Model saved to {path}")
     
+    ##
+    # @brief Load a trained model from disk
+    # @param path Path to the saved model
+    # @param logger Optional logger for logging
+    #
     def load(self, path: str, logger=None) -> None:
         """
         Load a trained model from disk.

@@ -1,3 +1,17 @@
+##
+# @file layout.py
+# @package classification.training.layout
+# @brief LayoutLMv3-based document classifier for document understanding and classification
+#
+# This module implements a document classifier using LayoutLMv3, a multimodal model
+# that combines text and layout information for document understanding. It provides
+# state-of-the-art performance for document classification tasks.
+# source: https://huggingface.co/microsoft/layoutlmv3-base
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,11 +29,30 @@ import os
 import time
 import pytesseract
     
+##
+# @brief LayoutLMv3-based document classifier for document understanding and classification
+#
+# This class implements a document classifier using LayoutLMv3, a multimodal model
+# that combines text and layout information for document understanding. It provides
+# state-of-the-art performance for document classification tasks.
+#
 class LayoutLMv3Classifier:
     """
     A document classifier using LayoutLMv3 for document understanding and classification.
     """
     
+    ##
+    # @brief Constructor for LayoutLMv3Classifier class
+    # @param num_classes Number of document classes
+    # @param model_name Name or path of the pre-trained LayoutLMv3 model
+    # @param learning_rate Learning rate for the optimizer
+    # @param weight_decay Weight decay for regularization
+    # @param device Device to use for training ('cuda' or 'cpu')
+    # @param num_epochs Number of training epochs
+    # @param apply_ocr Whether to apply OCR within the processor
+    # @param max_length Maximum sequence length for tokenization
+    # @param processor_name Name of the processor to use (defaults to model_name if None)
+    #
     def __init__(
         self, 
         num_classes: int,
@@ -78,6 +111,13 @@ class LayoutLMv3Classifier:
         # Define loss function
         self.criterion = nn.CrossEntropyLoss()
         
+    ##
+    # @brief Preprocess an image for LayoutLMv3
+    # @param image Image as PIL Image or numpy array
+    # @param words List of OCR words (optional, if not using internal OCR)
+    # @param boxes List of bounding boxes for words (optional, if not using internal OCR)
+    # @return Preprocessed input dictionary for LayoutLMv3
+    #
     def preprocess_image(self, 
                           image: Union[Image.Image, np.ndarray], 
                           words: Optional[List[str]] = None,
@@ -133,6 +173,14 @@ class LayoutLMv3Classifier:
         
         return encoding
     
+    ##
+    # @brief Train the model using DataLoader objects
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger Optional logger for TensorBoard logging
+    # @param **kwargs Additional training parameters
+    # @return Validation accuracy or training accuracy
+    #
     def train_model(
         self, 
         train_loader, 
@@ -315,6 +363,13 @@ class LayoutLMv3Classifier:
         
         return best_val_accuracy if val_loader is not None else epoch_accuracy
     
+    ##
+    # @brief Run inference on a single image
+    # @param image Image to classify
+    # @param words List of OCR words (optional)
+    # @param boxes List of bounding boxes for words (optional)
+    # @return Predicted class label
+    #
     def inference(self, 
                   image: Union[Image.Image, np.ndarray],
                   words: Optional[List[str]] = None,
@@ -344,6 +399,13 @@ class LayoutLMv3Classifier:
             
         return predicted.item()
     
+    ##
+    # @brief Get class probabilities for an image
+    # @param image Image to classify
+    # @param words List of OCR words (optional)
+    # @param boxes List of bounding boxes for words (optional)
+    # @return Array of class probabilities
+    #
     def predict_proba(self, 
                       image: Union[Image.Image, np.ndarray],
                       words: Optional[List[str]] = None,
@@ -373,6 +435,13 @@ class LayoutLMv3Classifier:
             
         return probabilities.cpu().numpy()[0]
     
+    ##
+    # @brief Evaluate the model on validation set
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param step Current step for logging
+    # @return Validation accuracy and loss
+    #
     def evaluate(self, val_loader, tb_logger=None, step=None):
         """
         Evaluate the model on validation set.
@@ -420,6 +489,10 @@ class LayoutLMv3Classifier:
         
         return accuracy, avg_loss
     
+    ##
+    # @brief Save the trained model and processor to disk
+    # @param path Path to save the model
+    #
     def save(self, path: str) -> None:
         """
         Save the trained model and processor to disk.
@@ -446,6 +519,10 @@ class LayoutLMv3Classifier:
         }
         torch.save(model_info, os.path.join(path, "model_info.pt"))
     
+    ##
+    # @brief Load a trained model from disk
+    # @param path Path to the saved model
+    #
     def load(self, path: str) -> None:
         """
         Load a trained model from disk.

@@ -39,13 +39,6 @@ Available models:
 
 Add the `--distilled` flag to download the distilled version of the model.
 
-### Testing the Model
-
-You can test the LSNet model on a sample image using the `test_lsnet.py` script:
-
-```bash
-python classification/test_lsnet.py --model lsnet_t --image path/to/image.jpg --show_image
-```
 
 ### Training the Model
 
@@ -60,8 +53,6 @@ python classification/main.py --config classification/config/lsnet.yaml
 The LSNet configuration is defined in `classification/config/lsnet.yaml`. You can modify this file to change the model size, training parameters, etc.
 
 ## Citation
-
-If you use this implementation in your research, please cite the original paper:
 
 ```bibtex
 @misc{wang2025lsnetlargefocussmall,

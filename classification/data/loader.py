@@ -1,3 +1,15 @@
+##
+# @file loader.py
+# @brief Data loading utility for document classification
+#
+# This module provides functionality for loading and combining document datasets
+# from various sources. It supports parallel loading of multiple datasets and
+# handles the integration of different data sources into a unified format.
+#
+# @author Statistical Learning Team
+# @date 2025-03-20
+#
+
 import torch
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
@@ -16,17 +28,36 @@ from classification.utils.logger import get_standard_logger
 # Use the standard logger directly
 logger = get_standard_logger("data_loader")
 
-
+##
+# @brief Dictionary mapping dataset names to their loader classes
+#
+# This dictionary provides a mapping between dataset names and their corresponding
+# loader classes, enabling dynamic loading of different dataset types.
+#
 datasets = {
     'rvl_cdip': RVLCDIPLoader,
     'kaggle_invoices': KaggleInvoicesLoader,
     'hf_invoices': HFInvoicesLoader
 }
 
+##
+# @brief Loads a single dataset by name
+# @param dataset_name Name of the dataset to load
+# @param minio_manager MinIO manager instance for data access
+# @param augmentor Augmentor instance for data augmentation
+# @return DataFrame containing the loaded dataset
+#
 def get_dataset(dataset_name: str, minio_manager: MinioManager, augmentor: Augmentor):
     logger.info(f"Loading dataset: {dataset_name}")
     return datasets[dataset_name](minio_manager, augmentor).load_dataset()
 
+##
+# @brief Loads and combines multiple datasets in parallel
+# @param datasets_list List of dataset names to load
+# @param minio_manager MinIO manager instance for data access
+# @param augmentor Augmentor instance for data augmentation
+# @return Combined DataFrame containing all datasets
+#
 def get_full_dataset(datasets_list: List[str], minio_manager: MinioManager, augmentor: Augmentor):
     logger.info(f"Loading datasets in parallel: {datasets_list}")
     # parallel load datasets
@@ -41,6 +72,12 @@ def get_full_dataset(datasets_list: List[str], minio_manager: MinioManager, augm
         logger.info(f"Combined dataset created with {len(combined_df)} samples")
         return combined_df
     
+##
+# @brief Main execution block for testing dataset loading
+#
+# This block initializes the necessary components and demonstrates
+# how to load and combine multiple datasets.
+#
 if __name__ == "__main__":
     # Initialize MinIO manager and augmentor
     logger.info("Initializing MinIO manager and augmentor")

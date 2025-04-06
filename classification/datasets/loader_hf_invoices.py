@@ -1,3 +1,17 @@
+##
+# @file loader_hf_invoices.py
+# @package classification.datasets.loader_hf_invoices
+# @brief HuggingFace Invoices dataset loader for document classification
+#
+# This module provides functionality for loading and processing invoice images
+# from the HuggingFace datasets repository. It handles data loading, image conversion,
+# augmentation, and integration with MinIO storage for document classification tasks.
+# source: https://huggingface.co/datasets/katanaml-org/invoices-donut-data-v1
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import pandas as pd
 import io
 from PIL import Image
@@ -14,7 +28,20 @@ from classification.datasets.cache_loader import load_dataset_from_cache, save_d
 logger_obj = get_logger("hf_invoices_loader")
 logger = logger_obj.logger
 
+##
+# @brief Loader class for HuggingFace Invoices dataset
+#
+# This class provides methods for loading and processing invoice images from the
+# HuggingFace datasets repository. It handles data loading, image conversion,
+# augmentation, and integration with MinIO storage for document classification tasks.
+#
 class HFInvoicesLoader:
+    ##
+    # @brief Constructor for HFInvoicesLoader class
+    # @param minio_manager MinIO manager instance for data storage
+    # @param augmentor Augmentor instance for data augmentation
+    # @param seed Random seed for reproducibility
+    #
     def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
@@ -22,6 +49,15 @@ class HFInvoicesLoader:
         set_global_seed(seed)
         logger.info(f"HFInvoicesLoader initialized with seed {seed}")
         
+    ##
+    # @brief Loads and processes the HuggingFace Invoices dataset
+    # @param chunk_size Number of samples to process in each chunk
+    # @param total_samples Total number of samples to load (None for all)
+    # @param apply_augmentation Whether to apply data augmentation
+    # @param augmentation_factor Number of augmented versions to create per image
+    # @param split Dataset split to load ('train', 'validation', or 'test')
+    # @return DataFrame containing processed dataset
+    #
     def load_dataset(
         self,
         chunk_size: int = 100,
@@ -140,6 +176,11 @@ class HFInvoicesLoader:
         
         return final_df
         
+    ##
+    # @brief Converts bytes data to PIL Image
+    # @param image_data Image data in bytes format
+    # @return PIL Image or None if conversion fails
+    #
     def _bytes_to_image(self, image_data):
         """Convert bytes data to PIL Image"""
         try:
@@ -152,6 +193,12 @@ class HFInvoicesLoader:
             logger.warning(f"Failed to convert bytes to image: {str(e)}")
             return None
             
+##
+# @brief Main execution block for testing dataset loading
+#
+# This block initializes the necessary components and demonstrates
+# how to load and process the HuggingFace Invoices dataset.
+#
 if __name__ == "__main__":
     # Configure logging format for direct script execution
     import logging

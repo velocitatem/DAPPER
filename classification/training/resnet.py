@@ -1,3 +1,16 @@
+##
+# @file resnet.py
+# @package classification.training.resnet
+# @brief ResNet-based document classifier implementation
+#
+# This module implements a document classifier using pre-trained ResNet models
+# from torchvision. It provides a flexible interface for fine-tuning ResNet
+# architectures for document classification tasks.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,11 +33,30 @@ from classification.utils.logger import Logger, get_standard_logger
 
 logger = get_standard_logger("resnet_classifier")
 
+##
+# @brief ResNet-based classifier for document classification
+#
+# This class implements a document classifier using pre-trained ResNet models
+# from torchvision. It provides methods for training, evaluation, and inference.
+#
 class ResNetClassifier:
     """
     A classifier using a pre-trained ResNet model for document classification.
     """
     
+    ##
+    # @brief Constructor for ResNetClassifier
+    # @param num_classes Number of classes to classify
+    # @param trained_model_name Name of the ResNet model to use (e.g., "resnet18", "resnet50")
+    # @param pretrained Whether to use pre-trained weights
+    # @param learning_rate Learning rate for the optimizer
+    # @param weight_decay Weight decay for regularization
+    # @param device Device to use for training ('cuda' or 'cpu')
+    # @param num_epochs Number of training epochs
+    # @param dropout_rate Dropout rate for regularization
+    # @param num_workers Number of workers for parallel data processing
+    # @param batch_size Batch size for training
+    #
     def __init__(
         self, 
         num_classes: int,
@@ -91,6 +123,10 @@ class ResNetClassifier:
         # Define loss function
         self.criterion = nn.CrossEntropyLoss()
         
+    ##
+    # @brief Create and configure the ResNet model
+    # @return Configured ResNet model
+    #
     def _create_model(self):
         """
         Create and configure the ResNet model.
@@ -131,6 +167,11 @@ class ResNetClassifier:
         
         return model
         
+    ##
+    # @brief Preprocess a single image for inference
+    # @param image Image as PIL Image, PyTorch tensor, or numpy array
+    # @return Preprocessed image as a PyTorch tensor
+    #
     def preprocess_image(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> torch.Tensor:
         """
         Preprocess a single image for inference.
@@ -163,6 +204,14 @@ class ResNetClassifier:
         # Apply transformations
         return transform(image)
     
+    ##
+    # @brief Train the model using DataLoader objects
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param **kwargs Additional training parameters
+    # @return Validation accuracy or training accuracy
+    #
     def train_model(
         self, 
         train_loader, 
@@ -303,6 +352,11 @@ class ResNetClassifier:
         
         return best_val_accuracy if val_loader is not None else epoch_accuracy
     
+    ##
+    # @brief Run inference on a single image
+    # @param image Image to classify
+    # @return Predicted class label
+    #
     def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> int:
         """
         Run inference on a single image.
@@ -331,6 +385,11 @@ class ResNetClassifier:
             
             return predicted.item()
     
+    ##
+    # @brief Get class probabilities for an image
+    # @param image Image to classify
+    # @return Class probabilities as a numpy array
+    #
     def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
         Get class probabilities for an image.
@@ -359,6 +418,13 @@ class ResNetClassifier:
             
             return probabilities.cpu().numpy()[0]
     
+    ##
+    # @brief Evaluate the model on validation set
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param step Current step for logging
+    # @return Validation accuracy
+    #
     def evaluate(self, val_loader, tb_logger=None, step=None):
         """
         Evaluate the model on validation set.
@@ -415,6 +481,10 @@ class ResNetClassifier:
         
         return accuracy
     
+    ##
+    # @brief Save the model to disk
+    # @param path Path to save the model
+    #
     def save(self, path: str) -> None:
         """
         Save the model to disk.
@@ -442,6 +512,10 @@ class ResNetClassifier:
         
         logger.info(f"Model saved to {path}")
     
+    ##
+    # @brief Load the model from disk
+    # @param path Path to load the model from
+    #
     def load(self, path: str) -> None:
         """
         Load the model from disk.

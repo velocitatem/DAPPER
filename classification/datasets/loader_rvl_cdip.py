@@ -1,3 +1,17 @@
+##
+# @file loader_rvl_cdip.py
+# @package classification.datasets.loader_rvl_cdip
+# @brief RVL-CDIP dataset loader for document classification
+#
+# This module provides functionality for loading and processing document images
+# from the RVL-CDIP dataset. It handles data loading, class grouping,
+# augmentation, and integration with MinIO storage for document classification tasks.
+# source: https://www.kaggle.com/datasets/ayoubcherguelaine/company-documents-dataset
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import pandas as pd
 from datasets import load_dataset
 import logging
@@ -7,13 +21,32 @@ from classification.data.augmentor import Augmentor
 from classification.utils.seed import set_global_seed
 from typing import Optional
 from classification.datasets.cache_loader import load_dataset_from_cache, save_dataset_to_cache
+
+##
+# @brief Loader class for RVL-CDIP dataset
+#
+# This class provides methods for loading and processing document images from the
+# RVL-CDIP dataset. It handles data loading, class grouping, augmentation,
+# and integration with MinIO storage for document classification tasks.
+#
 class RVLCDIPLoader:
+    ##
+    # @brief Constructor for RVLCDIPLoader class
+    # @param minio_manager MinIO manager instance for data storage
+    # @param augmentor Augmentor instance for data augmentation
+    # @param seed Random seed for reproducibility
+    #
     def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
         self.seed = seed
         set_global_seed(seed)
 
+    ##
+    # @brief Groups document classes into broader categories
+    # @param df DataFrame containing document data with 'class' column
+    # @return DataFrame with grouped labels in 'label' column
+    #
     def group_classes(self, df: pd.DataFrame) -> pd.DataFrame:
         """
 
@@ -44,6 +77,14 @@ class RVLCDIPLoader:
         df = df.reset_index(drop=True)
         return df
 
+    ##
+    # @brief Loads and processes the RVL-CDIP dataset
+    # @param chunk_size Number of samples to process in each chunk
+    # @param total_samples Total number of samples to load (None for all)
+    # @param apply_augmentation Whether to apply data augmentation
+    # @param augmentation_factor Number of augmented versions to create per image
+    # @return DataFrame containing processed dataset
+    #
     def load_dataset(
         self,
         chunk_size: int = 1000,
@@ -104,6 +145,12 @@ class RVLCDIPLoader:
         }, final_df)
         return final_df
 
+##
+# @brief Main execution block for testing dataset loading
+#
+# This block initializes the necessary components and demonstrates
+# how to load and process the RVL-CDIP dataset.
+#
 if __name__ == "__main__":
     minio_manager = MinioManager()
     augmentor = Augmentor()

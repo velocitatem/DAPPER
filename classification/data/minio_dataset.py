@@ -1,3 +1,16 @@
+##
+# @file minio_dataset.py
+# @package classification.data.minio_dataset
+# @brief MinIO-based PyTorch datasets for document classification
+#
+# This module provides PyTorch Dataset implementations for loading images and text
+# from MinIO object storage. It includes both image-only and multimodal datasets
+# with OCR capabilities for document classification tasks.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import io
 import logging
 import torch
@@ -17,10 +30,23 @@ import time
 
 logger = logging.getLogger(__name__)
 
+##
+# @brief PyTorch Dataset for loading images from MinIO storage
+#
+# This class extends PyTorch's Dataset class to load images from MinIO object storage.
+# It takes a DataFrame with image URLs, connects to MinIO, fetches images by their names,
+# applies transformations, and returns image-label pairs for model training.
+#
 class MinioImageDataset(Dataset):
     """
     PyTorch Dataset for loading images from MinIO storage
     """
+    ##
+    # @brief Constructor for MinioImageDataset class
+    # @param dataframe DataFrame containing 'image' URLs and 'label' columns
+    # @param bucket_name Name of the MinIO bucket to fetch images from
+    # @param transform Optional transformations to apply to the images
+    #
     def __init__(self, dataframe, bucket_name, transform=None):
         """
         Constructor for MinioImageDataset class
@@ -40,6 +66,10 @@ class MinioImageDataset(Dataset):
             secure=False
         )
 
+    ##
+    # @brief Returns the number of items in the dataset
+    # @return Number of images in the dataset
+    #
     def __len__(self):
         """
         Returns the number of items in the dataset
@@ -49,6 +79,11 @@ class MinioImageDataset(Dataset):
         """
         return len(self.df)
 
+    ##
+    # @brief Fetches and processes a single item from the dataset
+    # @param idx Index of the item to fetch
+    # @return Tuple of (transformed image tensor, class label tensor)
+    #
     def __getitem__(self, idx):
         """
         Fetches and processes a single item from the dataset
@@ -84,11 +119,34 @@ class MinioImageDataset(Dataset):
 
         return image, label 
 
+##
+# @brief PyTorch Dataset for loading images and extracting text via OCR from MinIO
+#
+# This class extends PyTorch's Dataset class to load images from MinIO object storage
+# and extract text using OCR. It includes an in-memory cache for OCR results and
+# supports parallel pre-fetching for improved performance.
+#
 class MinioMultiModalDataset(Dataset):
     """
     PyTorch Dataset for loading images and extracting text via OCR from MinIO.
     Includes an in-memory cache for OCR results and parallel pre-fetching.
     """
+    ##
+    # @brief Constructor for MinioMultiModalDataset class
+    # @param dataframe DataFrame with 'image' URL and 'label'
+    # @param bucket_name MinIO bucket name
+    # @param image_transform Transformations for the image
+    # @param tokenizer Tokenizer instance to process text
+    # @param max_sentences Maximum number of sentences to keep from OCR text
+    # @param max_sent_length Maximum number of tokens per sentence
+    # @param vocab Vocabulary mapping tokens to indices
+    # @param ocr_cache Optional external dictionary to use for OCR caching
+    # @param ocr_lang Tesseract language code(s)
+    # @param minio_endpoint MinIO server endpoint URL
+    # @param minio_access_key MinIO access key
+    # @param minio_secret_key MinIO secret key
+    # @param minio_secure Use TLS for MinIO connection
+    #
     def __init__(
         self,
         dataframe: pd.DataFrame,
@@ -147,7 +205,10 @@ class MinioMultiModalDataset(Dataset):
         if self.tokenizer is None and self.vocab is None:
              logger.warning("Neither tokenizer nor vocab provided to MinioMultiModalDataset. Text processing might fail.")
 
-    # --- Property to get Minio client, initializing if needed ---
+    ##
+    # @brief Property to get MinIO client, initializing if needed
+    # @return Initialized MinIO client
+    #
     @property
     def client(self):
         # This ensures client is initialized once per instance accessing it
@@ -163,10 +224,18 @@ class MinioMultiModalDataset(Dataset):
             )
         return self._minio_client
 
+    ##
+    # @brief Returns the number of items in the dataset
+    # @return Number of items in the dataset
+    #
     def __len__(self):
         return len(self.df)
 
-    # --- Worker function for parallel OCR ---
+    ##
+    # @brief Worker function for parallel OCR
+    # @param image_name Name of the image to process
+    # @return Tuple of (image_name, text or None on error)
+    #
     def _ocr_worker(self, image_name: str) -> Tuple[str, Optional[str]]:
         """Fetches image from MinIO and performs OCR. Returns (image_name, text or None on error)."""
         # Initialize MinIO client within the worker process
@@ -194,7 +263,10 @@ class MinioMultiModalDataset(Dataset):
             logger.error(f"OCR Worker Error for {image_name}: {e}")
             return image_name, None # Indicate failure
 
-    # --- New method to populate cache in parallel ---
+    ##
+    # @brief Pre-fetches images from MinIO and runs OCR in parallel to populate the cache
+    # @param max_workers Maximum number of worker processes to use
+    #
     def populate_ocr_cache(self, max_workers: Optional[int] = None):
         """
         Pre-fetches images from MinIO and runs OCR in parallel to populate the cache.
@@ -245,6 +317,12 @@ class MinioMultiModalDataset(Dataset):
         logger.info(f"Cache size: {len(self.ocr_cache)}")
 
 
+    ##
+    # @brief Helper to get OCR text, using cache
+    # @param image_name Name of the image
+    # @param image_bytes Image data in bytes
+    # @return OCR text for the image
+    #
     def _get_ocr_text(self, image_name: str, image_bytes: bytes) -> str:
         """Helper to get OCR text, using cache. Should be fast after pre-population."""
         if image_name in self.ocr_cache:
@@ -268,6 +346,11 @@ class MinioMultiModalDataset(Dataset):
                 self.ocr_cache[image_name] = "" # Cache failure as empty
                 return ""
 
+    ##
+    # @brief Tokenizes, numericalizes, and pads text to fit model input
+    # @param text Text to process
+    # @return Tensor of processed text
+    #
     def _preprocess_text(self, text: str) -> torch.Tensor:
         """Tokenizes, numericalizes, and pads text to fit model input."""
         # Basic sentence splitting (can be improved with NLTK, spaCy etc.)
@@ -325,6 +408,11 @@ class MinioMultiModalDataset(Dataset):
 
         return text_tensor
 
+    ##
+    # @brief Fetches and processes a single item from the dataset
+    # @param idx Index of the item to fetch
+    # @return Tuple of (text tensor, image tensor, label tensor)
+    #
     def __getitem__(self, idx):
         if idx >= len(self.df):
             raise IndexError("Index out of bounds")
@@ -380,6 +468,10 @@ class MinioMultiModalDataset(Dataset):
 
         return text_tensor, image_tensor, label
 
+    ##
+    # @brief Returns OCR cache statistics
+    # @return Dictionary with cache statistics
+    #
     def get_cache_stats(self):
         """Returns OCR cache statistics."""
         total_access = self.cache_hits + self.cache_misses

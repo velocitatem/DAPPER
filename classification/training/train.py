@@ -1,3 +1,16 @@
+##
+# @file train.py
+# @package classification.training.train
+# @brief Training script for document classification models
+#
+# This module provides a comprehensive training pipeline for document classification
+# models. It supports multiple model architectures, handles dataset loading and
+# preprocessing, and implements training with TensorBoard logging.
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 from classification.training.models import BaseModel
 from classification.training.hog import HogClassifier
 from classification.training.cnn import CNNClassifier
@@ -39,6 +52,15 @@ models = {
     "layoutlmv3": LayoutLMv3Classifier,
 }
 
+##
+# @brief Train a model with optional TensorBoard logging
+# @param model_name Name of the model to train
+# @param train_loader Training DataLoader
+# @param val_loader Validation DataLoader
+# @param tb_logger Optional logger for TensorBoard
+# @param **kwargs Additional arguments to pass to the model
+# @return Trained model
+#
 def train_model(model_name, train_loader, val_loader, tb_logger=None, **kwargs):
     """
     Train a model with optional TensorBoard logging
@@ -69,6 +91,23 @@ def train_model(model_name, train_loader, val_loader, tb_logger=None, **kwargs):
     
     return model
 
+##
+# @brief Create optimized PyTorch DataLoaders from DataFrames
+# @param train_df Training DataFrame with 'image' and 'label' columns
+# @param val_df Validation DataFrame with 'image' and 'label' columns
+# @param model_name Name of the model to create DataLoaders for
+# @param batch_size Batch size for DataLoader
+# @param num_workers Number of worker processes for data loading
+# @param prefetch_factor Number of batches loaded in advance by each worker
+# @param image_transform Image transformations to apply
+# @param tokenizer Tokenizer instance for text processing (if needed)
+# @param processor LayoutLMv3Processor for LayoutLMv3 model (if needed)
+# @param text_params Dictionary of text parameters (e.g., max_sentences, max_sent_length)
+# @param pin_memory Whether to pin memory for faster GPU access
+# @param shuffle_train Whether to shuffle the training dataset
+# @param drop_last Whether to drop the last incomplete batch
+# @return tuple: (train_loader, val_loader)
+#
 def create_dataloaders(
     train_df, 
     val_df, 
@@ -351,6 +390,11 @@ def create_dataloaders(
     
     return train_loader, val_loader
 
+##
+# @brief Load configuration from a YAML file
+# @param config_path Path to the configuration file
+# @return Dictionary containing the configuration
+#
 def load_config(config_path):
     """
     Load configuration from a YAML file
@@ -365,6 +409,10 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
+##
+# @brief Parse command line arguments
+# @return Parsed arguments
+#
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Train a model using a configuration file")
@@ -372,6 +420,18 @@ def parse_args():
                         help="Path to the configuration file")
     return parser.parse_args()
 
+##
+# @brief Main execution block
+#
+# This block handles the complete training pipeline:
+# 1. Parse command line arguments
+# 2. Load configuration from YAML file
+# 3. Initialize tokenizer/processor if needed
+# 4. Load and prepare dataset
+# 5. Create DataLoaders
+# 6. Train model
+# 7. Save model and log results
+#
 if __name__ == "__main__":
     args = parse_args()
     

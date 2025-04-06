@@ -1,3 +1,18 @@
+##
+# @file eaml.py
+# @package classification.training.eaml
+# @brief  Ensemble Self-Attention-based Mutual Learning Network for Document Image Classification
+#
+# This module implements an Ensemble Self-Attention-based Mutual Learning Network (EAML) for
+# document classification that combines text and image modalities. It includes
+# word-level and sentence-level attention mechanisms for text processing and
+# a CNN-based image encoder for visual features.
+# Architecture: https://arxiv.org/abs/2305.06923v1
+#
+# @author Statistical Learning Team
+# @date 2025
+#
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,13 +28,28 @@ import time
 # import logging
 # logger = logging.getLogger(__name__)
 
+##
+# @brief Word-level Attention layer for text processing
+#
+# This class implements a word-level attention mechanism that computes attention
+# weights for each word in a sequence and produces a context vector.
+#
 class WordAttention(nn.Module):
     """Word-level Attention layer."""
+    ##
+    # @brief Constructor for WordAttention class
+    # @param hidden_dim Dimension of the hidden state
+    #
     def __init__(self, hidden_dim):
         super(WordAttention, self).__init__()
         self.attention = nn.Linear(hidden_dim, hidden_dim)
         self.context_vector = nn.Linear(hidden_dim, 1, bias=False)
 
+    ##
+    # @brief Forward pass through the word attention layer
+    # @param gru_output Output from the GRU layer of shape (batch_size, seq_len, hidden_dim)
+    # @return Tuple of (context vector, attention weights)
+    #
     def forward(self, gru_output):
         # gru_output shape: (batch_size, seq_len, hidden_dim)
         attn_weights = torch.tanh(self.attention(gru_output))
@@ -32,13 +62,28 @@ class WordAttention(nn.Module):
         # context shape: (batch_size, hidden_dim)
         return context, alpha
 
+##
+# @brief Sentence-level Attention layer for text processing
+#
+# This class implements a sentence-level attention mechanism that computes attention
+# weights for each sentence in a document and produces a document vector.
+#
 class SentenceAttention(nn.Module):
     """Sentence-level Attention layer."""
+    ##
+    # @brief Constructor for SentenceAttention class
+    # @param hidden_dim Dimension of the hidden state
+    #
     def __init__(self, hidden_dim):
         super(SentenceAttention, self).__init__()
         self.attention = nn.Linear(hidden_dim, hidden_dim)
         self.context_vector = nn.Linear(hidden_dim, 1, bias=False)
 
+    ##
+    # @brief Forward pass through the sentence attention layer
+    # @param gru_output Output from the GRU layer of shape (batch_size, num_sentences, hidden_dim)
+    # @return Tuple of (document vector, attention weights)
+    #
     def forward(self, gru_output):
         # gru_output shape: (batch_size, num_sentences, hidden_dim)
         attn_weights = torch.tanh(self.attention(gru_output))
@@ -52,8 +97,19 @@ class SentenceAttention(nn.Module):
         return context, alpha
 
 
+##
+# @brief CNN-based image encoder for visual feature extraction
+#
+# This class implements a simple CNN architecture for encoding images into
+# fixed-dimensional feature vectors.
+#
 class ImageEncoder(nn.Module):
     """Simple CNN based image encoder."""
+    ##
+    # @brief Constructor for ImageEncoder class
+    # @param input_channels Number of input channels (1 for grayscale, 3 for RGB)
+    # @param output_dim Dimension of the output feature vector
+    #
     def __init__(self, input_channels, output_dim):
         super(ImageEncoder, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, stride=1, padding=1)
@@ -66,6 +122,11 @@ class ImageEncoder(nn.Module):
         self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(128, output_dim) # Adjust 128 based on final conv channels
 
+    ##
+    # @brief Forward pass through the image encoder
+    # @param x Input tensor of shape (batch_size, channels, height, width)
+    # @return Output tensor of shape (batch_size, output_dim)
+    #
     def forward(self, x):
         # x shape: (batch_size, channels, height, width)
         x = self.pool1(F.relu(self.conv1(x)))
@@ -78,6 +139,12 @@ class ImageEncoder(nn.Module):
         return x
 
 
+##
+# @brief Enhanced Multi-Level Attention Network for document classification
+#
+# This class implements a multimodal document classifier that combines text and
+# image features using attention mechanisms at multiple levels.
+#
 class EAML(nn.Module):
     """
     Enhanced Multi-Level Attention Network (EAML) for Document Classification
@@ -85,6 +152,17 @@ class EAML(nn.Module):
     Assumes text input is preprocessed into sentences and words, and embedded.
     Assumes image input is preprocessed to a fixed size.
     """
+    ##
+    # @brief Constructor for EAML class
+    # @param vocab_size Size of the vocabulary for text embedding
+    # @param embedding_dim Dimension of the word embeddings
+    # @param word_hidden_dim Dimension of the word-level GRU hidden state
+    # @param sent_hidden_dim Dimension of the sentence-level GRU hidden state
+    # @param image_channels Number of input image channels
+    # @param image_feature_dim Dimension of the image feature vector
+    # @param num_classes Number of document classes
+    # @param dropout Dropout rate for regularization
+    #
     def __init__(self, vocab_size, embedding_dim, word_hidden_dim, sent_hidden_dim,
                  image_channels, image_feature_dim, num_classes, dropout=0.5):
         super(EAML, self).__init__()
@@ -109,6 +187,12 @@ class EAML(nn.Module):
         self.fc = nn.Linear(sent_hidden_dim * 2 + image_feature_dim, num_classes)
         self.dropout = nn.Dropout(dropout)
 
+    ##
+    # @brief Forward pass through the EAML network
+    # @param docs Input tensor of shape (batch_size, num_sentences, max_sent_length)
+    # @param images Input tensor of shape (batch_size, channels, height, width)
+    # @return Output tensor of shape (batch_size, num_classes)
+    #
     def forward(self, docs, images):
         # --- Text Processing ---
         # Input `docs` shape: (batch_size, num_sentences, max_sent_length)
@@ -146,11 +230,32 @@ class EAML(nn.Module):
 
         return output #, word_alpha, sent_alpha # Optionally return attention weights
 
+##
+# @brief Wrapper class for training and using the EAML model
+#
+# This class provides a complete interface for training, evaluating, and using
+# the EAML model for document classification.
+#
 class EAMLClassifier:
     """
     Wrapper class for training and using the EAML model.
     Mirrors the structure of CNNClassifier.
     """
+    ##
+    # @brief Constructor for EAMLClassifier class
+    # @param num_classes Number of document classes
+    # @param vocab_size Size of the vocabulary for text embedding
+    # @param embedding_dim Dimension of the word embeddings
+    # @param word_hidden_dim Dimension of the word-level GRU hidden state
+    # @param sent_hidden_dim Dimension of the sentence-level GRU hidden state
+    # @param image_channels Number of input image channels
+    # @param image_feature_dim Dimension of the image feature vector
+    # @param image_size Tuple of (height, width) for image resizing
+    # @param dropout Dropout rate for regularization
+    # @param learning_rate Learning rate for the optimizer
+    # @param device Device to use for training ('cuda' or 'cpu')
+    # @param num_epochs Number of training epochs
+    #
     def __init__(
         self,
         num_classes: int,
@@ -204,6 +309,11 @@ class EAMLClassifier:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
+    ##
+    # @brief Preprocess an image for the EAML model
+    # @param image Image as PIL Image or numpy array
+    # @return Preprocessed image as a PyTorch tensor
+    #
     def preprocess_image(self, image: Union[Image.Image, np.ndarray]) -> torch.Tensor:
         """Preprocesses a single image."""
         if isinstance(image, np.ndarray):
@@ -216,6 +326,16 @@ class EAMLClassifier:
 
         return self.transform(image)
 
+    ##
+    # @brief Train the EAML model
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger Logger instance for TensorBoard logging
+    # @param save_dir Directory to save model checkpoints
+    # @param patience Number of epochs to wait before early stopping
+    # @param **kwargs Additional training parameters
+    # @return Best validation accuracy or training accuracy
+    #
     def train_model(
         self,
         train_loader,
@@ -323,6 +443,13 @@ class EAMLClassifier:
         print(f"Training finished. Best Validation Accuracy: {best_val_accuracy:.4f}")
         return best_val_accuracy if val_loader is not None else epoch_accuracy
 
+    ##
+    # @brief Evaluate the model on a dataset
+    # @param data_loader DataLoader for evaluation
+    # @param tb_logger Logger instance for TensorBoard logging
+    # @param step Current step for logging
+    # @return Tuple of (accuracy, loss)
+    #
     def evaluate(self, data_loader, tb_logger=None, step=None):
         """Evaluate the model."""
         self.model.eval()
@@ -377,6 +504,12 @@ class EAMLClassifier:
 
         return accuracy, avg_loss # Return percentage accuracy
 
+    ##
+    # @brief Run inference on a single text/image pair
+    # @param docs Input tensor of shape (num_sentences, max_sent_length)
+    # @param image Image as PIL Image or numpy array
+    # @return Predicted class label
+    #
     def inference(self, docs: torch.Tensor, image: Union[Image.Image, np.ndarray]) -> int:
         """Run inference on a single text/image pair."""
         self.model.eval()
@@ -389,6 +522,12 @@ class EAMLClassifier:
 
         return predicted.item()
 
+    ##
+    # @brief Get class probabilities for a single text/image pair
+    # @param docs Input tensor of shape (num_sentences, max_sent_length)
+    # @param image Image as PIL Image or numpy array
+    # @return Array of class probabilities
+    #
     def predict_proba(self, docs: torch.Tensor, image: Union[Image.Image, np.ndarray]) -> np.ndarray:
         """Get class probabilities for a single text/image pair."""
         self.model.eval()
@@ -401,6 +540,14 @@ class EAMLClassifier:
 
         return probabilities.cpu().numpy()[0]
 
+    ##
+    # @brief Save the trained model and relevant info
+    # @param path Path to save the model
+    # @param epoch Current epoch number
+    # @param val_accuracy Validation accuracy
+    # @param train_accuracy Training accuracy
+    # @param scaler Gradient scaler for mixed precision training
+    #
     def save(self, path: str, epoch: Optional[int] = None, val_accuracy: Optional[float] = None, train_accuracy: Optional[float] = None, scaler=None) -> None:
         """Save the trained model and relevant info."""
         save_obj = {
@@ -428,6 +575,11 @@ class EAMLClassifier:
 
         torch.save(save_obj, path)
 
+    ##
+    # @brief Load a trained model and optimizer state
+    # @param path Path to the saved model
+    # @param map_location Device to map the model to
+    #
     def load(self, path: str, map_location=None) -> None:
         """Load a trained model and optimizer state."""
         if map_location is None:
@@ -467,62 +619,3 @@ class EAMLClassifier:
         #     scaler.load_state_dict(checkpoint['scaler_state_dict'])
 
         print(f"Loaded model from {path}. Epoch: {checkpoint.get('epoch')}, Val Acc: {checkpoint.get('val_accuracy')}")
-
-# Example Usage (replace with actual data loading and preprocessing)
-# if __name__ == '__main__':
-#     # Hyperparameters (example values)
-#     VOCAB_SIZE = 10000
-#     NUM_CLASSES = 5
-#
-#     # Create classifier instance
-#     classifier = EAMLClassifier(num_classes=NUM_CLASSES, vocab_size=VOCAB_SIZE)
-#     print(classifier.model)
-#
-#     # --- Dummy Data Loading --- (Replace with actual DataLoader)
-#     from torch.utils.data import Dataset, DataLoader
-#     class DummyDataset(Dataset):
-#         def __init__(self, num_samples=100, vocab_size=10000, num_sentences=10, max_sent_length=50, img_size=(224,224), channels=3):
-#             self.num_samples = num_samples
-#             self.vocab_size = vocab_size
-#             self.num_sentences = num_sentences
-#             self.max_sent_length = max_sent_length
-#             self.img_size = img_size
-#             self.channels = channels
-#
-#         def __len__(self):
-#             return self.num_samples
-#
-#         def __getitem__(self, idx):
-#             docs = torch.randint(0, self.vocab_size, (self.num_sentences, self.max_sent_length), dtype=torch.long)
-#             images = torch.randn(self.channels, self.img_size[0], self.img_size[1])
-#             labels = torch.randint(0, NUM_CLASSES, (1,), dtype=torch.long).squeeze()
-#             return docs, images, labels
-#
-#     train_dataset = DummyDataset(num_samples=640)
-#     val_dataset = DummyDataset(num_samples=128)
-#     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-#     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
-#     # --- End Dummy Data Loading ---
-#
-#     # Mock TensorBoard logger
-#     class MockTBLogger:
-#         def log_metrics(self, metrics, step):
-#             # print(f"Step {step}: {metrics}")
-#             pass
-#     tb_logger = MockTBLogger()
-#
-#     # Train the model
-#     # classifier.train_model(train_loader, val_loader, tb_logger)
-#
-#     # Example inference (using first item from val_dataset)
-#     # docs_sample, image_sample, label_sample = val_dataset[0]
-#     # Need to convert image tensor back to PIL/np for preprocess_image
-#     # image_pil = transforms.ToPILImage()(image_sample) # Requires handling normalization if applied in dataset
-#     # pred_label = classifier.inference(docs_sample, image_pil)
-#     # print(f"Predicted label: {pred_label}, Actual label: {label_sample.item()}")
-#
-#     # Example save/load
-#     # classifier.save("models/eaml_test.pth")
-#     # new_classifier = EAMLClassifier(num_classes=NUM_CLASSES, vocab_size=VOCAB_SIZE)
-#     # new_classifier.load("models/eaml_test.pth")
-#     # print("Loaded model successfully.") 

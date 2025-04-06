@@ -1,3 +1,18 @@
+##
+# @file lsnet.py
+# @package classification.training.lsnet
+# @brief Large-Small Network (LSNet) for document classification
+#
+# This module implements a document classifier using LSNet, a lightweight vision network
+# that combines large-kernel perception and small-kernel aggregation for efficient
+# document classification. Based on the "See Large, Focus Small" strategy inspired by
+# human vision systems.
+#
+# @author Statistical Learning Team
+# @date 2025
+# @see https://arxiv.org/html/2503.23135v1
+#
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,6 +31,13 @@ from classification.utils.logger import Logger, get_standard_logger
 
 logger = get_standard_logger("lsnet_classifier")
 
+##
+# @brief Large-Small (LS) Convolution module for LSNet
+#
+# This module implements the core LS convolution operation that combines
+# large-kernel perception and small-kernel aggregation for efficient feature extraction.
+# Based on the "See Large, Focus Small" strategy from the LSNet paper.
+#
 class LSConvolution(nn.Module):
     """
     Large-Small (LS) Convolution module as described in the LSNet paper.
@@ -25,6 +47,15 @@ class LSConvolution(nn.Module):
     precise feature aggregation.
     """
     
+    ##
+    # @brief Constructor for LSConvolution module
+    # @param in_channels Number of input channels
+    # @param out_channels Number of output channels
+    # @param large_kernel_size Size of the large kernel for perception
+    # @param small_kernel_size Size of the small kernel for aggregation
+    # @param stride Stride of the convolution
+    # @param padding Padding for the convolution
+    #
     def __init__(self, in_channels, out_channels, large_kernel_size=7, small_kernel_size=3, stride=1, padding=None):
         """
         Initialize the LS Convolution module.
@@ -74,6 +105,11 @@ class LSConvolution(nn.Module):
         # Activation function
         self.relu = nn.ReLU(inplace=False)
     
+    ##
+    # @brief Forward pass through the LS Convolution module
+    # @param x Input tensor of shape [batch_size, in_channels, height, width]
+    # @return Output tensor of shape [batch_size, out_channels, height, width]
+    #
     def forward(self, x):
         """
         Forward pass through the LS Convolution module.
@@ -96,6 +132,12 @@ class LSConvolution(nn.Module):
         
         return x
 
+##
+# @brief LS Block for LSNet architecture
+#
+# This block consists of LS Convolution followed by a residual connection,
+# forming a basic building block for the LSNet architecture.
+#
 class LSBlock(nn.Module):
     """
     LS Block as described in the LSNet paper.
@@ -103,6 +145,12 @@ class LSBlock(nn.Module):
     This block consists of LS Convolution followed by a residual connection.
     """
     
+    ##
+    # @brief Constructor for LSBlock
+    # @param in_channels Number of input channels
+    # @param out_channels Number of output channels
+    # @param stride Stride of the convolution
+    #
     def __init__(self, in_channels, out_channels, stride=1):
         """
         Initialize the LS Block.
@@ -125,6 +173,11 @@ class LSBlock(nn.Module):
                 nn.BatchNorm2d(out_channels)
             )
     
+    ##
+    # @brief Forward pass through the LS Block
+    # @param x Input tensor of shape [batch_size, in_channels, height, width]
+    # @return Output tensor of shape [batch_size, out_channels, height, width]
+    #
     def forward(self, x):
         """
         Forward pass through the LS Block.
@@ -144,6 +197,13 @@ class LSBlock(nn.Module):
         
         return out
 
+##
+# @brief LSNet model for document classification
+#
+# This model implements the LSNet architecture for document classification,
+# using LS Convolution and LS Blocks to achieve efficient and effective
+# feature extraction and classification.
+#
 class LSNet(nn.Module):
     """
     LSNet model as described in the paper.
@@ -152,6 +212,12 @@ class LSNet(nn.Module):
     and effective feature extraction and classification.
     """
     
+    ##
+    # @brief Constructor for LSNet model
+    # @param num_classes Number of classes to classify
+    # @param model_size Size of the model ('t' for tiny, 's' for small, 'b' for base)
+    # @param dropout_rate Dropout probability
+    #
     def __init__(self, num_classes=16, model_size='s', dropout_rate=0.5):
         """
         Initialize the LSNet model.
@@ -204,6 +270,9 @@ class LSNet(nn.Module):
         # Initialize weights
         self._initialize_weights()
     
+    ##
+    # @brief Initialize weights for the model
+    #
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -215,6 +284,14 @@ class LSNet(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
     
+    ##
+    # @brief Create a layer of LS Blocks
+    # @param in_channels Number of input channels
+    # @param out_channels Number of output channels
+    # @param num_blocks Number of LS Blocks in the layer
+    # @param stride Stride of the first LS Block
+    # @return Sequential module containing LS Blocks
+    #
     def _make_layer(self, in_channels, out_channels, num_blocks, stride=1):
         """
         Create a layer of LS Blocks.
@@ -236,6 +313,11 @@ class LSNet(nn.Module):
             layers.append(LSBlock(out_channels, out_channels))
         return nn.Sequential(*layers)
     
+    ##
+    # @brief Forward pass through the LSNet model
+    # @param x Input tensor of shape [batch_size, 3, height, width]
+    # @return Output tensor of shape [batch_size, num_classes]
+    #
     def forward(self, x):
         """
         Forward pass through the LSNet model.
@@ -272,11 +354,31 @@ class LSNet(nn.Module):
         
         return x
 
+##
+# @brief LSNet-based classifier for document classification
+#
+# This class implements a document classifier using the LSNet model,
+# providing methods for training, evaluation, and inference.
+#
 class LSNetClassifier:
     """
     A classifier using the LSNet model for image classification.
     """
     
+    ##
+    # @brief Constructor for LSNetClassifier
+    # @param num_classes Number of classes to classify
+    # @param model_size Size of the LSNet model ('t' for tiny, 's' for small, 'b' for base)
+    # @param learning_rate Learning rate for the optimizer
+    # @param weight_decay Weight decay for regularization
+    # @param device Device to use for training ('cuda' or 'cpu')
+    # @param num_epochs Number of training epochs
+    # @param batch_size Batch size for training
+    # @param num_workers Number of workers for data loading
+    # @param pretrained Whether to use pre-trained weights
+    # @param freeze_backbone Whether to freeze the backbone
+    # @param config Configuration dictionary containing model and training parameters
+    #
     def __init__(
         self, 
         num_classes: Optional[int] = None,
@@ -462,6 +564,9 @@ class LSNetClassifier:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     
+    ##
+    # @brief Load pre-trained weights for the model
+    #
     def _load_pretrained_weights(self):
         """
         Load pre-trained weights for the model.
@@ -491,6 +596,9 @@ class LSNetClassifier:
         except Exception as e:
             logger.error(f"Error loading pre-trained weights: {e}")
     
+    ##
+    # @brief Freeze the backbone of the model
+    #
     def _freeze_backbone(self):
         """
         Freeze the backbone of the model.
@@ -503,6 +611,14 @@ class LSNetClassifier:
         for param in self.model.fc.parameters():
             param.requires_grad = True
     
+    ##
+    # @brief Train the model using DataLoader objects
+    # @param train_loader Training DataLoader
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param **kwargs Additional training parameters
+    # @return Validation accuracy or training accuracy
+    #
     def train_model(
         self, 
         train_loader, 
@@ -659,6 +775,11 @@ class LSNetClassifier:
         
         return best_val_accuracy if val_loader is not None else epoch_accuracy
     
+    ##
+    # @brief Run inference on a single image
+    # @param image Image to classify
+    # @return Predicted class label
+    #
     def inference(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> int:
         """
         Run inference on a single image.
@@ -689,6 +810,11 @@ class LSNetClassifier:
             
             return predicted.item()
     
+    ##
+    # @brief Get class probabilities for an image
+    # @param image Image to classify
+    # @return Class probabilities as a numpy array
+    #
     def predict_proba(self, image: Union[Image.Image, torch.Tensor, np.ndarray]) -> np.ndarray:
         """
         Get class probabilities for an image.
@@ -719,6 +845,13 @@ class LSNetClassifier:
             
             return probabilities.cpu().numpy()[0]
     
+    ##
+    # @brief Evaluate the model on validation set
+    # @param val_loader Validation DataLoader
+    # @param tb_logger TensorBoard logger instance for metrics visualization
+    # @param step Current step for logging
+    # @return Validation accuracy and loss
+    #
     def evaluate(self, val_loader, tb_logger=None, step=None):
         """
         Evaluate the model on validation set.
@@ -780,6 +913,10 @@ class LSNetClassifier:
         
         return accuracy, avg_loss # Return percentage accuracy and avg loss
     
+    ##
+    # @brief Save the model to disk
+    # @param path Path to save the model to
+    #
     def save(self, path: str) -> None:
         """
         Save the model to disk.
@@ -817,6 +954,10 @@ class LSNetClassifier:
         # Use the module-level logger instance (defined at the top)
         logger.info(f"Model saved to {path}")
     
+    ##
+    # @brief Load the model from disk
+    # @param path Path to load the model from
+    #
     def load(self, path: str) -> None:
         """
         Load the model from disk.
