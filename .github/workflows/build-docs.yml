@@ -23,7 +23,7 @@ jobs:
         sudo apt-get install -y doxygen graphviz
     
     - name: Build Documentation
-      run: doxygen Doxyfile
+      run: doxygen
     
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
@@ -32,7 +32,7 @@ jobs:
         publish_dir: ./docs/html
         publish_branch: gh-pages
         force_orphan: true
-        enable_jekyll: false
+        enable_jekyll: true
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: 'docs: update documentation'
