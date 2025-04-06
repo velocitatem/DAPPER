@@ -28,6 +28,156 @@ from tqdm import tqdm
 import os
 import time
 import pytesseract
+from classification.data.minio_dataset import MinioImageDataset, MinioMultiModalDataset
+from torchvision import transforms
+
+
+class LayoutLMv3Dataset(MinioImageDataset):
+    def __init__(self, dataframe, bucket_name, processor, **kwargs):
+        super().__init__(dataframe, bucket_name, transform=None)
+        self.processor = processor
+        self.apply_ocr = kwargs.get("apply_ocr", False)
+        # Store labels from dataframe
+        self.labels = dataframe["label"].values
+        # Use simple dictionary for OCR cache
+        self.ocr_cache = {}
+        # Store dataframe locally to avoid attribute errors
+        self.dataframe = dataframe
+        
+    def get_image_path(self, idx):
+        """Get the image path for the given index from the dataframe."""
+        try:
+            # First try to access the dataframe stored in this class
+            if hasattr(self, 'dataframe') and self.dataframe is not None:
+                index = idx
+                if hasattr(self, 'indices') and self.indices is not None:
+                    index = self.indices[idx]
+                return self.dataframe.iloc[index]['pdf_path']
+                
+            # If not available, try accessing parent class attributes
+            if hasattr(self, 'data') and self.data is not None:
+                index = idx
+                if hasattr(self, 'indices') and self.indices is not None:
+                    index = self.indices[idx]
+                return self.data.iloc[index]['pdf_path']
+                
+            if hasattr(self, 'df') and self.df is not None:
+                index = idx
+                if hasattr(self, 'indices') and self.indices is not None:
+                    index = self.indices[idx]
+                return self.df.iloc[index]['pdf_path']
+                
+            # Last resort: try to use the parent class's get_image_path
+            return super().get_image_path(idx)
+        except Exception as e:
+            raise ValueError(f"Could not find image path for index {idx}: {str(e)}")
+        
+    def __getitem__(self, idx):
+        try:
+            # Get image from Minio
+            image, label = super().__getitem__(idx)
+            
+            # Convert tensor to PIL Image for processor
+            if isinstance(image, torch.Tensor):
+                # Handle different tensor dimensions
+                if image.dim() == 4:  # Batch of images
+                    image = image[0]
+                
+                # Convert tensor to PIL Image
+                image = transforms.ToPILImage()(image)
+            
+            # Use a cache key based on the index
+            cache_key = f"image_{idx}"
+            
+            # Check if OCR results are cached
+            if cache_key in self.ocr_cache:
+                words, boxes = self.ocr_cache[cache_key]
+            else:
+                # Run OCR
+                import pytesseract
+                import numpy as np
+                
+                try:
+                    # Get OCR results
+                    ocr_df = pytesseract.image_to_data(image, output_type='data.frame')
+                    ocr_df = ocr_df.dropna().reset_index(drop=True)
+                    
+                    # Extract words and coordinates
+                    words = []
+                    boxes = []
+                    
+                    width, height = image.size
+                    
+                    for _, row in ocr_df.iterrows():
+                        if str(row['text']).strip() != '':
+                            words.append(str(row['text']))
+                            
+                            # Convert coordinates to normalized format (0-1000)
+                            x = int(1000 * row['left'] / width)
+                            y = int(1000 * row['top'] / height)
+                            w = int(1000 * row['width'] / width)
+                            h = int(1000 * row['height'] / height)
+                            
+                            # Bounding box in format [x0, y0, x1, y1]
+                            box = [x, y, x + w, y + h]
+                            boxes.append(box)
+                    
+                    # Handle empty OCR results
+                    if not words:
+                        words = [""]
+                        boxes = [[0, 0, 0, 0]]
+                    
+                    # Cache the results
+                    self.ocr_cache[cache_key] = (words, boxes)
+                except Exception as e:
+                    # Provide default values on error
+                    words = [""]
+                    boxes = [[0, 0, 0, 0]]
+                    self.ocr_cache[cache_key] = (words, boxes)
+            
+            # Process with LayoutLMv3Processor
+            try:
+                encoding = self.processor(
+                    image, 
+                    words,
+                    boxes=boxes,
+                    return_tensors="pt",
+                    truncation=True,
+                    padding="max_length"
+                )
+                
+                # Remove batch dimension
+                for k, v in encoding.items():
+                    encoding[k] = v.squeeze(0)
+                
+                # Add label
+                if isinstance(label, torch.Tensor):
+                    encoding["labels"] = label.clone().detach()
+                else:
+                    encoding["labels"] = torch.tensor(label, dtype=torch.long)
+                
+                return encoding
+            except Exception as e:
+                # Provide a minimal valid encoding in case of errors
+                # This helps avoid stopping the entire training process
+                dummy_encoding = {
+                    "input_ids": torch.zeros((512,), dtype=torch.long),
+                    "attention_mask": torch.zeros((512,), dtype=torch.long),
+                    "bbox": torch.zeros((512, 4), dtype=torch.long),
+                    "pixel_values": torch.zeros((3, 224, 224), dtype=torch.float),
+                    "labels": torch.tensor(label, dtype=torch.long) if not isinstance(label, torch.Tensor) else label.clone().detach()
+                }
+                return dummy_encoding
+        except Exception as e:
+            # Return minimal valid encoding with default label 0
+            return {
+                "input_ids": torch.zeros((512,), dtype=torch.long),
+                "attention_mask": torch.zeros((512,), dtype=torch.long),
+                "bbox": torch.zeros((512, 4), dtype=torch.long),
+                "pixel_values": torch.zeros((3, 224, 224), dtype=torch.float),
+                "labels": torch.zeros(1, dtype=torch.long)
+            }
+
     
 ##
 # @brief LayoutLMv3-based document classifier for document understanding and classification
@@ -168,6 +318,7 @@ class LayoutLMv3Classifier:
             return_tensors="pt"
         )
         
+
         # Move to device
         encoding = {k: v.to(self.device) for k, v in encoding.items()}
         

@@ -303,8 +303,9 @@ class HogClassifier:
         
         # Evaluate on validation set if provided
         val_accuracy = None
+        val_loss = None
         if val_loader is not None:
-            val_accuracy = self.evaluate(val_loader, tb_logger) # Removed step argument
+            val_accuracy, val_loss = self.evaluate(val_loader, tb_logger, step=1) # Added step parameter
             return val_accuracy
         
         return train_accuracy
@@ -313,18 +314,20 @@ class HogClassifier:
     # @brief Evaluate the model on validation set
     # @param val_loader Validation DataLoader
     # @param tb_logger TensorBoard logger instance for metrics visualization
-    # @return Validation accuracy
+    # @param step Current step for logging
+    # @return Validation accuracy and loss
     #
-    def evaluate(self, val_loader, tb_logger=None): # Removed step argument
+    def evaluate(self, val_loader, tb_logger=None, step=None): # Added step parameter
         """
         Evaluate the model on validation set.
         
         Args:
             val_loader: Validation DataLoader
             tb_logger: TensorBoard logger instance for metrics visualization
+            step: Current step for logging
             
         Returns:
-            Validation accuracy
+            Validation accuracy and loss
         """
         logger.info("Extracting HOG features from validation data...")
         
@@ -353,6 +356,11 @@ class HogClassifier:
         val_predictions = self.model.predict(X_val)
         val_accuracy = 100. * np.mean(val_predictions == y_val) # Percentage
         
+        # Calculate loss (cross-entropy loss approximation)
+        # For HOG model, we don't have direct access to probabilities
+        # So we'll use a simple 0/1 loss approximation
+        val_loss = 1.0 - np.mean(val_predictions == y_val)
+        
         # Calculate probabilities if the model supports it
         # Note: Classification report and CM logging remain useful here
         if hasattr(self.model, 'predict_proba'):
@@ -368,16 +376,16 @@ class HogClassifier:
                  report = classification_report(y_val, val_predictions)
                  logger.info("\nClassification Report:\n" + report)
         
-        logger.info(f"Validation accuracy: {val_accuracy:.2f}%") # Print percentage
+        logger.info(f"Validation accuracy: {val_accuracy:.2f}%, Loss: {val_loss:.4f}") # Print percentage and loss
 
-        # Log final validation metric (use step=1)
-        if tb_logger:
+        # Log final validation metrics
+        if tb_logger and step is not None:
              tb_logger.log_metrics({
                  'val/accuracy': val_accuracy,
-                 # No 'val/epoch_loss' for HOG
-             }, step=1)
+                 'val/loss': val_loss
+             }, step=step)
         
-        return val_accuracy
+        return val_accuracy, val_loss  # Return both accuracy and loss
     
     ##
     # @brief Save the trained model to disk

@@ -19,3 +19,14 @@ data_cache/
 
 
 pids.txt
+model_images/cnn
+model_images/eaml
+model_images/hybrid
+model_images/lsnet
+model_images/resnet
+# do not ignore model_images/cnn.png
+!model_images/cnn.png
+!model_images/eaml.png
+!model_images/hybrid.png
+!model_images/lsnet.png
+!model_images/resnet.png

@@ -35,11 +35,13 @@ class RVLCDIPLoader:
     # @param minio_manager MinIO manager instance for data storage
     # @param augmentor Augmentor instance for data augmentation
     # @param seed Random seed for reproducibility
-    #
-    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
+    # @param apply_ocr Whether to apply OCR processing to the images
+    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42, apply_ocr: bool = False):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
         self.seed = seed
+        self.apply_ocr = apply_ocr
+        print("!!!", self.apply_ocr)
         set_global_seed(seed)
 
     ##
@@ -48,12 +50,9 @@ class RVLCDIPLoader:
     # @return DataFrame with grouped labels in 'label' column
     #
     def group_classes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-
         classes = ["letter", "form", "email", "handwritten", "advertisement", "scientific report",
            "scientific publication", "specification", "file folder", "news article", "budget",
            "invoice", "presentation", "questionnaire", "resume", "memo"]
-        """
         mapping = {
             "invoice": "invoice",
             'letter': 'correspondence',
@@ -72,7 +71,11 @@ class RVLCDIPLoader:
             "news article": "other",
             "budget": "other",
         }
-        df['label'] = df['class'].map(mapping)
+        int_mapping = {}
+        for key, value in mapping.items():
+            key_int = classes.index(key)
+            int_mapping[key_int] = value
+        df['label'] = df['label'].map(int_mapping)
         df = df.dropna(subset=['label'])
         df = df.reset_index(drop=True)
         return df
@@ -87,10 +90,10 @@ class RVLCDIPLoader:
     #
     def load_dataset(
         self,
-        chunk_size: int = 1000,
+        chunk_size: int = 2000,
         total_samples: Optional[int] = 10000,
         apply_augmentation: bool = True,
-        augmentation_factor: int = 2,
+        augmentation_factor: int = 2
     ) -> pd.DataFrame:
         logging.info("Loading RVL-CDIP dataset")
         dataset = load_dataset("aharley/rvl_cdip", split='train', trust_remote_code=True)
@@ -100,6 +103,7 @@ class RVLCDIPLoader:
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
             "augmentation_factor": augmentation_factor,
+            "apply_ocr": self.apply_ocr,
         })
         if cache is not None:
             return cache
@@ -119,10 +123,16 @@ class RVLCDIPLoader:
             df['is_augmented'] = False
             df['global_id'] = [f"rvl_cdip_{start_idx + i}" for i in range(len(df))]
             df = self.group_classes(df)
+            # Apply OCR if enabled
+            if self.apply_ocr:
+                logging.info(f"Applying OCR processing to {len(df)} images")
+                df = self.augmentor.process_ocr(df, max_workers=20)
+                logging.info(f"OCR processing completed")
 
             # Resize images and upload to MinIO
             df['image'] = df['image'].apply(lambda img: self.augmentor.resize_image(img))
             df = self.minio_manager.upload_dataframe(df)
+
 
             # Apply augmentation if enabled
             if apply_augmentation:
@@ -142,6 +152,7 @@ class RVLCDIPLoader:
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
             "augmentation_factor": augmentation_factor,
+            "apply_ocr": self.apply_ocr,
         }, final_df)
         return final_df
 

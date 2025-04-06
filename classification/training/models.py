@@ -32,6 +32,8 @@ class BaseModel():
 from classification.training.resnet import ResNetClassifier
 from classification.training.cnn import CNNClassifier
 from classification.training.lsnet import LSNetClassifier
+from classification.training.hybrid import HybridTrainer
+from classification.training.eaml import EAMLClassifier
 
 def get_model(
     model_name: str, 
@@ -76,6 +78,31 @@ def get_model(
         return model.model
     elif model_name == 'lsnet_b':
         model = LSNetClassifier(num_classes=num_classes, model_size='b', **kwargs)
+        return model.model
+    elif model_name == 'hybrid':
+        model = HybridTrainer(num_classes=num_classes, **kwargs)
+        return model.classifier.model
+    elif model_name == 'eaml':
+        # EAML model requires additional parameters
+        # Use sensible defaults based on eaml_config.yaml
+        vocab_size = kwargs.get('vocab_size', 10000)
+        embedding_dim = kwargs.get('embedding_dim', 100)
+        word_hidden_dim = kwargs.get('word_hidden_dim', 50)
+        sent_hidden_dim = kwargs.get('sent_hidden_dim', 50)
+        image_channels = kwargs.get('image_channels', 3)
+        image_feature_dim = kwargs.get('image_feature_dim', 128)
+        dropout = kwargs.get('dropout', 0.5)
+        
+        model = EAMLClassifier(
+            num_classes=num_classes,
+            vocab_size=vocab_size,
+            embedding_dim=embedding_dim,
+            word_hidden_dim=word_hidden_dim,
+            sent_hidden_dim=sent_hidden_dim,
+            image_channels=image_channels,
+            image_feature_dim=image_feature_dim,
+            dropout=dropout
+        )
         return model.model
     else:
         raise ValueError(f"Unsupported model: {model_name}")

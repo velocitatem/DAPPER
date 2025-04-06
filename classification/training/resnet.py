@@ -423,7 +423,7 @@ class ResNetClassifier:
     # @param val_loader Validation DataLoader
     # @param tb_logger TensorBoard logger instance for metrics visualization
     # @param step Current step for logging
-    # @return Validation accuracy
+    # @return Validation accuracy and loss
     #
     def evaluate(self, val_loader, tb_logger=None, step=None):
         """
@@ -435,7 +435,7 @@ class ResNetClassifier:
             step: Current step for logging
             
         Returns:
-            Validation accuracy
+            Validation accuracy and loss
         """
         self.model.eval()
         val_loss = 0.0
@@ -465,21 +465,21 @@ class ResNetClassifier:
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
-        # Calculate accuracy
-        accuracy = correct / total if total > 0 else 0
+        # Calculate accuracy and loss
+        avg_loss = val_loss / total if total > 0 else 0
+        accuracy = 100. * (correct / total if total > 0 else 0)  # Convert to percentage
         
         # Log metrics to standard logger
-        logger.info(f"Validation Loss: {val_loss / total if total > 0 else 0:.4f}, Accuracy: {accuracy:.4f}")
+        logger.info(f"Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.2f}%")
         
         # Log metrics to TensorBoard if available
-        if tb_logger:
+        if tb_logger and step is not None:
             tb_logger.log_metrics({
-                'val/loss': val_loss / total if total > 0 else 0,
+                'val/loss': avg_loss,
                 'val/accuracy': accuracy
             }, step=step)
         
-        
-        return accuracy
+        return accuracy, avg_loss  # Return both accuracy and loss
     
     ##
     # @brief Save the model to disk

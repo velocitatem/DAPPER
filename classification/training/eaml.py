@@ -162,14 +162,16 @@ class EAML(nn.Module):
     # @param image_feature_dim Dimension of the image feature vector
     # @param num_classes Number of document classes
     # @param dropout Dropout rate for regularization
+    # @param use_ocr_text Whether to use OCR text from the dataset
     #
     def __init__(self, vocab_size, embedding_dim, word_hidden_dim, sent_hidden_dim,
-                 image_channels, image_feature_dim, num_classes, dropout=0.5):
+                 image_channels, image_feature_dim, num_classes, dropout=0.5, use_ocr_text=False):
         super(EAML, self).__init__()
         self.embedding_dim = embedding_dim
         self.word_hidden_dim = word_hidden_dim
         self.sent_hidden_dim = sent_hidden_dim
         self.image_feature_dim = image_feature_dim
+        self.use_ocr_text = use_ocr_text
 
         # --- Text Branch ---
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
@@ -255,6 +257,7 @@ class EAMLClassifier:
     # @param learning_rate Learning rate for the optimizer
     # @param device Device to use for training ('cuda' or 'cpu')
     # @param num_epochs Number of training epochs
+    # @param use_ocr_text Whether to use OCR text from the dataset
     #
     def __init__(
         self,
@@ -269,7 +272,8 @@ class EAMLClassifier:
         dropout: float = 0.5,
         learning_rate: float = 0.001,
         device: Optional[str] = None,
-        num_epochs: int = 10
+        num_epochs: int = 10,
+        use_ocr_text: bool = False
     ):
         self.num_classes = num_classes
         self.vocab_size = vocab_size
@@ -282,6 +286,7 @@ class EAMLClassifier:
         self.dropout = dropout
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
+        self.use_ocr_text = use_ocr_text
 
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -296,7 +301,8 @@ class EAMLClassifier:
             image_channels=self.image_channels,
             image_feature_dim=self.image_feature_dim,
             num_classes=self.num_classes,
-            dropout=self.dropout
+            dropout=self.dropout,
+            use_ocr_text=self.use_ocr_text
         ).to(self.device)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -564,7 +570,8 @@ class EAMLClassifier:
                 'image_size': self.image_size,
                 'dropout': self.dropout,
                 'learning_rate': self.learning_rate,
-                'num_epochs': self.num_epochs # Save the planned epochs
+                'num_epochs': self.num_epochs, # Save the planned epochs
+                'use_ocr_text': self.use_ocr_text
             },
             'epoch': epoch,
             'val_accuracy': val_accuracy,
@@ -599,6 +606,7 @@ class EAMLClassifier:
         self.image_size = config.get('image_size', (224, 224)) # Handle older saves
         self.dropout = config['dropout']
         self.learning_rate = config['learning_rate']
+        self.use_ocr_text = config.get('use_ocr_text', False) # Handle older saves
         # self.num_epochs = config['num_epochs'] # Usually not needed on load, but available
 
         # Re-initialize model and optimizer with loaded config before loading state dicts
@@ -606,7 +614,8 @@ class EAMLClassifier:
             vocab_size=self.vocab_size, embedding_dim=self.embedding_dim,
             word_hidden_dim=self.word_hidden_dim, sent_hidden_dim=self.sent_hidden_dim,
             image_channels=self.image_channels, image_feature_dim=self.image_feature_dim,
-            num_classes=self.num_classes, dropout=self.dropout
+            num_classes=self.num_classes, dropout=self.dropout,
+            use_ocr_text=self.use_ocr_text
         ).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 

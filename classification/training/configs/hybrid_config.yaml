@@ -1,0 +1,52 @@
+# Hybrid Classifier Configuration
+# This configuration combines LSNet for image processing and EAML for text processing
+
+model:
+  name: "hybrid"
+  # Model architecture parameters
+  vocab_size: 10000  # Size of vocabulary for text embedding
+  embedding_dim: 100  # Dimension of word embeddings
+  word_hidden_dim: 64  # Dimension of word-level GRU hidden state
+  sent_hidden_dim: 128  # Dimension of sentence-level GRU hidden state
+  lsnet_model_size: "s"  # LSNet model size ('t', 's', or 'b')
+  dropout: 0.5  # Dropout rate for regularization
+  
+  # Training parameters
+  learning_rate: 0.0005  # Learning rate for the optimizer
+  weight_decay: 0.01  # Weight decay for the optimizer
+  num_epochs: 50  # Number of training epochs
+  use_ocr_text: true  # Whether to use OCR text from the dataset
+
+# Training parameters
+training:
+  batch_size: 32  # Batch size for training
+  num_workers: 8  # Number of worker processes for data loading
+  test_size: 0.2  # Proportion of the dataset to use for validation
+  patience: 10  # Number of epochs to wait for improvement before early stopping
+  mixed_precision: true  # Whether to use mixed precision training
+  datasets:  # List of datasets to use for training
+    - "rvl_cdip"
+    - "kaggle_invoices"
+    - "hf_invoices"
+  apply_ocr: true  # Whether to apply OCR to images for text extraction
+  
+  # Text preprocessing parameters
+  max_sentences: 20  # Maximum number of sentences to extract from OCR text
+  max_sent_length: 50  # Maximum length of each sentence
+  
+  # Augmentation parameters
+  augmentation:
+    enabled: true  # Whether to use data augmentation
+    rotation_range: 5  # Rotation range in degrees
+    width_shift_range: 0.1  # Width shift range as a fraction of image width
+    height_shift_range: 0.1  # Height shift range as a fraction of image height
+    shear_range: 0.1  # Shear intensity (shear angle in radians)
+    zoom_range: 0.1  # Range for random zoom
+    brightness_range: [0.9, 1.1]  # Range for random brightness adjustment
+    
+# Logging parameters
+logging:
+  log_dir: "logs/hybrid"  # Directory to save logs
+  experiment_name: null  # Will be auto-generated if null
+  save_dir: "models/hybrid"  # Directory to save model checkpoints
+  log_interval: 10  # Number of batches between logging 

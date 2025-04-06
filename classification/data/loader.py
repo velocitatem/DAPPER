@@ -45,24 +45,33 @@ datasets = {
 # @param dataset_name Name of the dataset to load
 # @param minio_manager MinIO manager instance for data access
 # @param augmentor Augmentor instance for data augmentation
+# @param apply_ocr Whether to apply OCR processing to the images
 # @return DataFrame containing the loaded dataset
 #
-def get_dataset(dataset_name: str, minio_manager: MinioManager, augmentor: Augmentor):
-    logger.info(f"Loading dataset: {dataset_name}")
-    return datasets[dataset_name](minio_manager, augmentor).load_dataset()
+def get_dataset(dataset_name: str, minio_manager: MinioManager, augmentor: Augmentor, apply_ocr: bool = False):
+    logger.info(f"Loading dataset: {dataset_name} with OCR: {apply_ocr}")
+    return datasets[dataset_name](minio_manager, augmentor, apply_ocr=apply_ocr).load_dataset()
 
 ##
 # @brief Loads and combines multiple datasets in parallel
 # @param datasets_list List of dataset names to load
 # @param minio_manager MinIO manager instance for data access
 # @param augmentor Augmentor instance for data augmentation
+# @param apply_ocr Whether to apply OCR processing to the images
+# @param ocr_workers Number of parallel workers for OCR processing
+# @param ocr_config Optional configuration for tesseract OCR
 # @return Combined DataFrame containing all datasets
 #
-def get_full_dataset(datasets_list: List[str], minio_manager: MinioManager, augmentor: Augmentor):
+def get_full_dataset(
+    datasets_list: List[str], 
+    minio_manager: MinioManager, 
+    augmentor: Augmentor,
+    apply_ocr: bool = False,
+):
     logger.info(f"Loading datasets in parallel: {datasets_list}")
     # parallel load datasets
     with ThreadPoolExecutor(max_workers=len(datasets_list)) as executor:
-        futures = [executor.submit(get_dataset, dataset_name, minio_manager, augmentor) for dataset_name in datasets_list]
+        futures = [executor.submit(get_dataset, dataset_name, minio_manager, augmentor, apply_ocr) for dataset_name in datasets_list]
         
         # Combine all datasets
         combined_df = pd.concat([future.result() for future in futures])
@@ -90,7 +99,7 @@ if __name__ == "__main__":
         'hf_invoices': HFInvoicesLoader
     }
     # Load all datasets
-    df = get_full_dataset(list(datasets.keys()), minio_manager, augmentor)
+    df = get_full_dataset(list(datasets.keys()), minio_manager, augmentor, apply_ocr=True)
     logger.info(f"Loaded and combined {len(df)} samples")
     
     # Show sample data

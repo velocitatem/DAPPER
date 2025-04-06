@@ -42,10 +42,11 @@ class KaggleInvoicesLoader:
     # @param augmentor Augmentor instance for data augmentation
     # @param seed Random seed for reproducibility
     #
-    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
+    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42, apply_ocr: bool = False):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
         self.seed = seed
+        self.apply_ocr = apply_ocr
         set_global_seed(seed)
         logger.info(f"KaggleInvoicesLoader initialized with seed {seed}")
 
@@ -74,6 +75,7 @@ class KaggleInvoicesLoader:
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
             "augmentation_factor": augmentation_factor,
+            "apply_ocr": self.apply_ocr,
         })
         if cache is not None:
             logger.info(f"Loaded dataset from cache with {len(cache)} samples")
@@ -94,7 +96,6 @@ class KaggleInvoicesLoader:
         
         # Filter for invoices only
         invoices = df[df['label'] == 'invoice']
-        invoices['label'] = 11
         logger.info(f"Filtered {len(invoices)} invoice samples from dataset")
         
         # Extract invoice IDs
@@ -135,6 +136,12 @@ class KaggleInvoicesLoader:
             # Upload to MinIO
             logger.info("Uploading images to MinIO")
             chunk = self.minio_manager.upload_dataframe(chunk)
+
+            # Apply OCR if enabled
+            if self.apply_ocr:
+                logger.info(f"Applying OCR processing to {len(chunk)} images")
+                chunk = self.augmentor.process_ocr(chunk, max_workers=5)
+                logger.info(f"OCR processing completed")
             
             # Apply augmentation if enabled
             if apply_augmentation:
@@ -165,6 +172,7 @@ class KaggleInvoicesLoader:
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
             "augmentation_factor": augmentation_factor,
+            "apply_ocr": self.apply_ocr,
         }, final_df)
         
         return final_df

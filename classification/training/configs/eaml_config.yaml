@@ -26,14 +26,13 @@ data:
 
 training:
   test_size: 0.2          # Proportion of dataset to use for validation split
-  num_epochs: 20          # Maximum number of training epochs
-  device: null            # Device ('cuda', 'cpu', or null for auto-detect)
+  num_epochs: 100 # Maximum number of training epochs
+  device: "cuda" # Device ('cuda', 'cpu', or null for auto-detect)
   optimizer:
     name: "adam" # Assuming Adam
     learning_rate: 0.0005     # Initial learning rate for the Adam optimizer
-    # weight_decay: 0.0     # Weight decay (L2 regularization), if needed
-  # scheduler: # Optional section
-  #   name: "cosine_annealing"
+    scheduler:
+      name: "cosine_annealing"
   # loss: # Optional section
   #   name: "cross_entropy"
 
@@ -45,7 +44,7 @@ training:
   # test_size: 0.2          # Proportion of dataset to use for validation split
   # device: null            # Device ('cuda', 'cpu', or null for auto-detect)
   # --- Early Stopping (defaults in EAMLClassifier.train_model) ---
-  # patience: 5           # Number of epochs with no improvement to wait before stopping
+  patience: 10           # Number of epochs with no improvement to wait before stopping
 
 logging:
   log_dir: "logs/"           # Base directory for logs and TensorBoard results

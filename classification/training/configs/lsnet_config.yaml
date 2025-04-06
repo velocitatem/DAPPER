@@ -27,7 +27,7 @@ model:
 # Training settings
 training:
   device: "cuda"  # Options: cuda, cpu
-  num_epochs: 100
+  num_epochs: 55
   optimizer:
     name: "adam"  # Options: adam, sgd
     learning_rate: 0.001

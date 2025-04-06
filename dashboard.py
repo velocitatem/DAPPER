@@ -66,7 +66,7 @@ classes = ["letter", "form", "email", "handwritten", "advertisement", "scientifi
            "invoice", "presentation", "questionnaire", "resume", "memo"]
 
 # List of available models
-AVAILABLE_MODELS = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'cnn', 'lsnet_t', 'lsnet_s', 'lsnet_b']
+AVAILABLE_MODELS = ['resnet18', 'lsnet_t']
 
 # Define transformations (Assuming these are compatible with all models for now)
 transformations = transforms.Compose([
@@ -100,8 +100,20 @@ def load_model(model_name: str):
         st.success(f"Successfully loaded model: {model_name}")
         return model
     except FileNotFoundError:
-        st.error(f"Model file '{model_path}' not found. Please ensure the model file exists.")
-        return None
+        # Try alternative path without "_best" suffix
+        alternative_path = f'models/{model_name}.pth'
+        try:
+            model.load_state_dict(torch.load(alternative_path, map_location=device), strict=False)
+            model = model.to(device)
+            model.eval()
+            st.success(f"Successfully loaded model: {model_name}")
+            return model
+        except FileNotFoundError:
+            st.error(f"Model files '{model_path}' or '{alternative_path}' not found. Please ensure the model file exists.")
+            return None
+        except Exception as e:
+            st.error(f"Error loading model '{model_name}': {str(e)}")
+            return None
     except Exception as e:
         st.error(f"Error loading model '{model_name}': {str(e)}")
         return None
@@ -131,8 +143,18 @@ def classify_image(image):
         image = image.convert('RGB')
 
     image_tensor = transformations(image).unsqueeze(0).to(device)
+    
     with torch.no_grad():
-        outputs = model(image_tensor)
+        # Check if the model is EAML, which requires text input
+        if selected_model_name == 'eaml':
+            # Create a dummy text input tensor - empty sentences
+            # Shape should be (batch_size, num_sentences, max_sent_length)
+            dummy_text = torch.zeros(1, 15, 50, dtype=torch.long).to(device)
+            outputs = model(dummy_text, image_tensor)
+        else:
+            # Regular model forward pass with just the image
+            outputs = model(image_tensor)
+            
         probabilities = F.softmax(outputs, dim=1)[0]
         top3_prob, top3_classes = torch.topk(probabilities, 3)
     results = [(classes[top3_classes[i].item()], top3_prob[i].item() * 100) for i in range(3)]
@@ -198,7 +220,11 @@ def process_pdf(pdf_path, return_images=False):
         page_results = []
         for img in images:
             results = classify_image(img)
-            page_results.append(results)
+            if results:  # Check if results is not empty
+                page_results.append(results)
+            else:
+                # Handle case where classification failed
+                page_results.append([("Unknown", 0.0)])
 
         if return_images:
             return page_results, images
@@ -237,15 +263,33 @@ def process_zip_file(zip_file, output_zip_path, process_pdf, classes):
         results = {}
         for pdf_path in pdf_files:
             pdf_name = pdf_path.name
-            page_results, _ = process_pdf(str(pdf_path))
+            page_results, error_msg = process_pdf(str(pdf_path))
 
             if page_results:
                 results[pdf_name] = page_results
-                majority_class = max(
-                    set([res[0][0] for res in page_results]),
-                    key=[res[0][0] for res in page_results].count
-                )
-                shutil.copy(pdf_path, categories[majority_class] / pdf_name)
+                
+                # Filter out None or empty results
+                valid_results = [res for res in page_results if res and len(res) > 0]
+                
+                if valid_results:
+                    # Get the top class from each page's result
+                    top_classes = [res[0][0] for res in valid_results]
+                    
+                    # Find the most common class
+                    if top_classes:
+                        majority_class = max(set(top_classes), key=top_classes.count)
+                        shutil.copy(pdf_path, categories[majority_class] / pdf_name)
+                    else:
+                        # Fallback to 'unknown' or first class if we can't determine majority
+                        fallback_class = classes[0]  # Default to first class
+                        shutil.copy(pdf_path, categories[fallback_class] / pdf_name)
+                else:
+                    # Handle case with no valid results
+                    fallback_class = classes[0]  # Default to first class
+                    shutil.copy(pdf_path, categories[fallback_class] / pdf_name)
+            else:
+                # Log the error message
+                st.error(f"Failed to process {pdf_name}: {error_msg}")
 
         # Create ZIP on disk with categorized results
         with zipfile.ZipFile(output_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -334,7 +378,7 @@ if uploaded_zip is not None and model:
     with st.spinner("Processing ZIP file..."):
         result_file, results = process_zip_file(uploaded_zip, "classified_documents.zip", process_pdf, classes)
 
-        if result_file:
+        if result_file and isinstance(results, dict):  # Check if results is a dict
             st.success("Successfully processed all PDFs in the ZIP file!")
 
             # Display summary of results
@@ -342,9 +386,12 @@ if uploaded_zip is not None and model:
             for pdf_name, page_results in results.items():
                 st.markdown(f"**{pdf_name}**")
                 for i, results in enumerate(page_results):
-                    top_class = results[0][0]
-                    top_prob = results[0][1]
-                    st.markdown(f"- Page {i+1}: {top_class} ({top_prob:.2f}%)")
+                    if results and len(results) > 0:  # Check if results has data
+                        top_class = results[0][0]
+                        top_prob = results[0][1]
+                        st.markdown(f"- Page {i+1}: {top_class} ({top_prob:.2f}%)")
+                    else:
+                        st.markdown(f"- Page {i+1}: Classification failed")
 
             # Provide download button for the processed ZIP
             st.download_button(
@@ -354,4 +401,4 @@ if uploaded_zip is not None and model:
                 mime="application/zip"
             )
         else:
-            st.error("Error processing ZIP file. Please check the file contents and try again.")
+            st.error(f"Error processing ZIP file: {results if not result_file else 'Unknown error'}")

@@ -42,10 +42,11 @@ class HFInvoicesLoader:
     # @param augmentor Augmentor instance for data augmentation
     # @param seed Random seed for reproducibility
     #
-    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42):
+    def __init__(self, minio_manager: MinioManager, augmentor: Augmentor, seed: int = 42, apply_ocr: bool = False):
         self.minio_manager = minio_manager
         self.augmentor = augmentor
         self.seed = seed
+        self.apply_ocr = apply_ocr
         set_global_seed(seed)
         logger.info(f"HFInvoicesLoader initialized with seed {seed}")
         
@@ -76,6 +77,7 @@ class HFInvoicesLoader:
             "chunk_size": chunk_size,
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
+            "apply_ocr": self.apply_ocr,
             "augmentation_factor": augmentation_factor,
             "split": split,
         })
@@ -127,7 +129,7 @@ class HFInvoicesLoader:
                 chunk = valid_rows
                 
             # Add invoice label
-            chunk['label'] = 11  # Invoice category
+            chunk['label'] = "invoice"  # Invoice category
             
             # Resize images
             logger.info("Resizing images")
@@ -142,6 +144,12 @@ class HFInvoicesLoader:
             logger.info("Uploading images to MinIO")
             chunk = self.minio_manager.upload_dataframe(chunk)
             
+            # Apply OCR if enabled
+            if self.apply_ocr:
+                logger.info(f"Applying OCR processing to {len(chunk)} images")
+                chunk = self.augmentor.process_ocr(chunk, max_workers=5)
+                logger.info(f"OCR processing completed")
+
             # Apply augmentation if enabled
             if apply_augmentation:
                 logger.info(f"Creating {augmentation_factor}x augmentations")
@@ -150,6 +158,7 @@ class HFInvoicesLoader:
                 chunk = pd.concat([chunk, augmented_df], ignore_index=True)
                 logger.debug(f"Added {len(augmented_df)} augmented samples")
                 
+
             all_chunks.append(chunk)
             logger.info(f"Chunk processed with {len(chunk)} final samples")
             
@@ -170,6 +179,7 @@ class HFInvoicesLoader:
             "chunk_size": chunk_size,
             "total_samples": total_samples,
             "apply_augmentation": apply_augmentation,
+            "apply_ocr": self.apply_ocr,
             "augmentation_factor": augmentation_factor,
             "split": split,
         }, final_df)
