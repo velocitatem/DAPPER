@@ -1,3 +1,4 @@
+\mainpage
 # DAPPER (Document Analysis, Processing, and Pattern Extraction Repository)
 
 [![Build and Deploy Documentation](https://github.com/velocitatem/DAPPER/actions/workflows/build-docs.yml/badge.svg)](https://github.com/velocitatem/DAPPER/actions/workflows/build-docs.yml)
