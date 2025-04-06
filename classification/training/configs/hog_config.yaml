@@ -9,12 +9,26 @@ data:
     batch_size: 16
     num_workers: 4
     pin_memory: true
+    shuffle: true
+    drop_last: false
 
 # Training parameters
 training:
   test_size: 0.2
+  device: "cuda"
 
 # Logging parameters
 logging:
   log_dir: "logs"
-  experiment_name: "hog_baseline"  # Will be auto-generated if null 
+  experiment_name: "hog_baseline"  # Will be auto-generated if null
+
+# Optuna Tuning Parameters
+tuning:
+  n_trials: 10 # Fewer params to tune
+  params:
+    model.classifier:
+      type: categorical
+      choices: ["logistic_regression", "svm"]
+    # data.dataloader.batch_size:
+    #   type: categorical
+    #   choices: [16, 32, 64] # Batch size mainly affects feature extraction speed here 

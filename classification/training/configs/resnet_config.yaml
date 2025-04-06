@@ -3,20 +3,51 @@ model:
   name: "resnet"
   resnet_model: "resnet18"  # Options: resnet18, resnet34, resnet50, resnet101
   pretrained: true
-  learning_rate: 0.0001
-  weight_decay: 0.01
-  num_epochs: 50
-  dropout_rate: 0.2
 
-
+# Data settings
+data:
+  dataloader:
+    batch_size: 128
+    num_workers: 12
+    # Add other dataloader params if needed (pin_memory, etc.)
 
 # Training parameters
 training:
-  batch_size: 128
-  num_workers: 12
   test_size: 0.2
+  num_epochs: 50
+  dropout_rate: 0.2
+  device: "cuda"
+  optimizer:
+    name: "adam"
+    learning_rate: 0.0001
+    weight_decay: 0.01
 
 # Logging parameters
 logging:
   log_dir: "logs"
-  experiment_name: "resnet_baseline"  # Will be auto-generated if null 
+  experiment_name: "resnet_baseline"  # Will be auto-generated if null
+
+# Optuna Tuning Parameters
+tuning:
+  n_trials: 50
+  params:
+    training.optimizer.learning_rate:
+      type: float
+      low: 1e-5
+      high: 1e-3
+      log: true
+    training.dropout_rate:
+      type: float
+      low: 0.1
+      high: 0.7
+    training.optimizer.weight_decay:
+      type: float
+      low: 1e-5
+      high: 1e-2
+      log: true
+    data.dataloader.batch_size:
+      type: categorical
+      choices: [32, 64, 128]
+    model.resnet_model: # Example: Tune model variant
+      type: categorical
+      choices: ["resnet18", "resnet34"] 

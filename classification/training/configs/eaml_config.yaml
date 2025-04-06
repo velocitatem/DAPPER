@@ -1,0 +1,81 @@
+# Configuration for EAML Model Training
+
+model:
+  name: eaml
+  # Text Branch Hyperparameters
+  embedding_dim: 100      # Dimension for word embeddings
+  word_hidden_dim: 50     # Hidden dimension for word-level GRU (actual GRU uses 2*dim due to bidirectional)
+  sent_hidden_dim: 50     # Hidden dimension for sentence-level GRU (actual GRU uses 2*dim due to bidirectional)
+  # Image Branch Hyperparameters
+  image_channels: 3       # Number of input image channels (3 for RGB)
+  image_feature_dim: 128  # Output dimension from the image encoder CNN
+  # Shared Hyperparameters
+  dropout: 0.5            # Dropout rate used in various layers
+
+data:
+  # --- Text Data Parameters ---
+  tokenizer_name: 'bert-base-uncased' # Name of Hugging Face tokenizer (or path) to load
+  max_sentences: 15       # Max sentences per document extracted via OCR
+  max_sent_length: 50     # Max tokens per sentence (after tokenization)
+  # --- Image Data Parameters ---
+  # image_size: [224, 224] # Implicitly handled by transform in train.py currently
+  # --- Dataloader Parameters ---
+  dataloader:
+    batch_size: 32          # Batch size for training and validation
+    num_workers: 4          # Number of CPU workers for loading data (adjust based on system)
+
+training:
+  test_size: 0.2          # Proportion of dataset to use for validation split
+  num_epochs: 20          # Maximum number of training epochs
+  device: null            # Device ('cuda', 'cpu', or null for auto-detect)
+  optimizer:
+    name: "adam" # Assuming Adam
+    learning_rate: 0.0005     # Initial learning rate for the Adam optimizer
+    # weight_decay: 0.0     # Weight decay (L2 regularization), if needed
+  # scheduler: # Optional section
+  #   name: "cosine_annealing"
+  # loss: # Optional section
+  #   name: "cross_entropy"
+
+  # --- Optimizer Parameters (Adam is default in EAMLClassifier) ---
+  # learning_rate: 0.0005     # Initial learning rate for the Adam optimizer
+  # weight_decay: 0.0     # Weight decay (L2 regularization), if needed
+  # --- Training Loop Parameters ---
+  # num_epochs: 20          # Maximum number of training epochs
+  # test_size: 0.2          # Proportion of dataset to use for validation split
+  # device: null            # Device ('cuda', 'cpu', or null for auto-detect)
+  # --- Early Stopping (defaults in EAMLClassifier.train_model) ---
+  # patience: 5           # Number of epochs with no improvement to wait before stopping
+
+logging:
+  log_dir: "logs/"           # Base directory for logs and TensorBoard results
+  experiment_name: "eaml_baseline"     # Experiment name (subdirectory in log_dir). If null, generated automatically.
+
+# Optuna Tuning Parameters
+tuning:
+  n_trials: 30 # EAML might be slower, fewer trials
+  params:
+    training.optimizer.learning_rate:
+      type: float
+      low: 1e-4
+      high: 5e-3
+      log: true
+    model.dropout:
+      type: float
+      low: 0.2
+      high: 0.7
+    model.embedding_dim:
+      type: categorical
+      choices: [50, 100, 200]
+    model.word_hidden_dim:
+      type: categorical
+      choices: [32, 50, 64]
+    model.sent_hidden_dim:
+      type: categorical
+      choices: [32, 50, 64]
+    model.image_feature_dim:
+      type: categorical
+      choices: [64, 128, 256]
+    data.dataloader.batch_size:
+      type: categorical
+      choices: [16, 32] 

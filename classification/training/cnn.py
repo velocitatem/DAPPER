@@ -230,30 +230,34 @@ class CNNClassifier:
                     'acc': 100. * correct / total
                 })
                 
-                # Log batch metrics to TensorBoard
+                # RE-ADD BATCH LOGGING
                 if tb_logger:
-                    tb_logger.log_metrics({
-                        'train/batch_loss': loss.item(),
-                        'train/batch_accuracy': 100. * correct / total,
-                    }, step=epoch * len(train_loader) + batch_idx)
+                     batch_acc = (predicted == labels).sum().item() / labels.size(0)
+                     tb_logger.log_metrics({
+                         'train/batch_loss': loss.item(),
+                         'train/batch_accuracy': 100. * batch_acc, 
+                     }, step=epoch * len(train_loader) + batch_idx)
             
             # Calculate epoch statistics
             epoch_loss = running_loss / total if total > 0 else 0
-            epoch_accuracy = correct / total if total > 0 else 0
+            epoch_accuracy = 100. * (correct / total if total > 0 else 0)
             
-            # Log metrics to TensorBoard if available
+            print(f"Epoch {epoch+1} Summary: Loss: {epoch_loss:.4f}, Acc: {epoch_accuracy:.2f}%")
+
+            # Log epoch metrics to TensorBoard if available
             if tb_logger:
                 tb_logger.log_metrics({
                     'train/epoch_loss': epoch_loss,
                     'train/epoch_accuracy': epoch_accuracy,
-                    'train/learning_rate': self.optimizer.param_groups[0]['lr']
-                }, step=epoch)
+                }, step=epoch+1)
             
             # Validation
             val_accuracy = None
+            val_loss = None
             if val_loader is not None:
-                val_accuracy = self.evaluate(val_loader, tb_logger, epoch)
-                
+                val_accuracy, val_loss = self.evaluate(val_loader, tb_logger, epoch + 1)
+                print(f"Validation: Loss: {val_loss:.4f}, Acc: {val_accuracy:.2f}%")
+
                 # Early stopping check
                 if val_accuracy > best_val_accuracy:
                     best_val_accuracy = val_accuracy
@@ -370,17 +374,18 @@ class CNNClassifier:
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
-        # Calculate accuracy
-        accuracy = correct / total if total > 0 else 0
+        # Calculate accuracy and loss
+        avg_loss = val_loss / total if total > 0 else 0
+        accuracy = 100. * (correct / total if total > 0 else 0)
         
-        # Log metrics to TensorBoard if available
-        if tb_logger:
+        # Log validation epoch metrics to TensorBoard if available
+        if tb_logger and step is not None:
             tb_logger.log_metrics({
-                'val/loss': val_loss / total if total > 0 else 0,
+                'val/loss': avg_loss,
                 'val/accuracy': accuracy
             }, step=step)
         
-        return accuracy
+        return accuracy, avg_loss
     
     def save(self, path: str) -> None:
         """

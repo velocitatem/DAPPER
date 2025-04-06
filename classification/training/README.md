@@ -11,6 +11,8 @@ The training script now uses YAML configuration files instead of command-line ar
 - **HOG Classifier**: Uses Histogram of Oriented Gradients features with a traditional classifier
 - **CNN Classifier**: Uses a Convolutional Neural Network for image classification
 - **ResNet Classifier**: Uses a pre-trained ResNet model for document classification
+- **EAML Classifier**: (Description for EAML model)
+- **LSNet Classifier**: (Description for LSNet model)
 
 ### Configuration Files
 
@@ -19,6 +21,8 @@ Configuration files are stored in the `configs` directory:
 - `hog_config.yaml`: Configuration for the HOG classifier
 - `cnn_config.yaml`: Configuration for the CNN classifier
 - `resnet_config.yaml`: Configuration for the ResNet classifier
+- `eaml_config.yaml`: Configuration for the EAML classifier
+- `lsnet_config.yaml`: Configuration for the LSNet classifier
 
 ### Example Configuration Files
 
@@ -91,22 +95,17 @@ logging:
 
 ### Running Training
 
-To train a model using a configuration file:
+To train a model using a configuration file, first define the configuration directory and file:
 
 ```bash
-python -m classification.training.train --config classification/training/configs/hog_config.yaml
+config_dir="classification/training/configs"
+config="hog_config.yaml" # Or cnn_config.yaml, resnet_config.yaml, eaml_config.yaml, lsnet_config.yaml, or your custom config
 ```
 
-or
+Then, run the training script. The `&` runs the command in the background:
 
 ```bash
-python -m classification.training.train --config classification/training/configs/cnn_config.yaml
-```
-
-or
-
-```bash
-python -m classification.training.train --config classification/training/configs/resnet_config.yaml
+python -m classification.training.train --config "$config_dir/$config" &
 ```
 
 ### Creating Custom Configurations

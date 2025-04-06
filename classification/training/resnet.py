@@ -242,8 +242,8 @@ class ResNetClassifier:
                     'acc': 100. * correct / total
                 })
                 tb_logger.log_metrics({
-                    'train/loss': running_loss / (batch_idx + 1),
-                    'train/accuracy': 100. * correct / total,
+                    'train/batch_loss': running_loss / (batch_idx + 1),
+                    'train/batch_accuracy': 100. * correct / total,
                 }, step=step)
                 step += 1
             # Calculate epoch statistics
@@ -256,8 +256,8 @@ class ResNetClassifier:
             # Log metrics to TensorBoard if available
             if tb_logger:
                 tb_logger.log_metrics({
-                    'train/epoch_loss': epoch_loss,
-                    'train/epoch_accuracy': epoch_accuracy,
+                    'train/loss': epoch_loss,
+                    'train/accuracy': epoch_accuracy*100,
                     'train/learning_rate': self.optimizer.param_groups[0]['lr']
                 }, step=epoch)
             

@@ -55,16 +55,16 @@ def get_model(
     """
     if model_name == 'resnet18':
         model = ResNetClassifier(num_classes=num_classes, trained_model_name='resnet18', pretrained=pretrained, **kwargs)
-        return model.get_model()
+        return model.model
     elif model_name == 'resnet34':
         model = ResNetClassifier(num_classes=num_classes, trained_model_name='resnet34', pretrained=pretrained, **kwargs)
-        return model.get_model()
+        return model.model
     elif model_name == 'resnet50':
         model = ResNetClassifier(num_classes=num_classes, trained_model_name='resnet50', pretrained=pretrained, **kwargs)
-        return model.get_model()
+        return model.model
     elif model_name == 'resnet101':
         model = ResNetClassifier(num_classes=num_classes, trained_model_name='resnet101', pretrained=pretrained, **kwargs)
-        return model.get_model()
+        return model.model
     elif model_name == 'cnn':
         model = CNNClassifier(num_classes=num_classes, **kwargs)
         return model.model

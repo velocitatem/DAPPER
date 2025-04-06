@@ -14,6 +14,36 @@ class RVLCDIPLoader:
         self.seed = seed
         set_global_seed(seed)
 
+    def group_classes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+
+        classes = ["letter", "form", "email", "handwritten", "advertisement", "scientific report",
+           "scientific publication", "specification", "file folder", "news article", "budget",
+           "invoice", "presentation", "questionnaire", "resume", "memo"]
+        """
+        mapping = {
+            "invoice": "invoice",
+            'letter': 'correspondence',
+            "email": "correspondence",
+            "memo": "correspondence",
+            "form": "forms",
+            "questionnaire": "forms",
+            "specification": "forms",
+            "scientific report": "scientific",
+            "scientific publication": "scientific",
+            "advertisement": "promotional",
+            "presentation": "promotional",
+            "resume": "personal",
+            "handwritten": "personal",
+            "file folder": "other",
+            "news article": "other",
+            "budget": "other",
+        }
+        df['label'] = df['class'].map(mapping)
+        df = df.dropna(subset=['label'])
+        df = df.reset_index(drop=True)
+        return df
+
     def load_dataset(
         self,
         chunk_size: int = 1000,
@@ -47,6 +77,7 @@ class RVLCDIPLoader:
             df['source_dataset'] = 'rvl_cdip'
             df['is_augmented'] = False
             df['global_id'] = [f"rvl_cdip_{start_idx + i}" for i in range(len(df))]
+            df = self.group_classes(df)
 
             # Resize images and upload to MinIO
             df['image'] = df['image'].apply(lambda img: self.augmentor.resize_image(img))

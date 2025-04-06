@@ -2,16 +2,48 @@
 model:
   name: "cnn"
   input_channels: 3  # 1 for grayscale, 3 for RGB
-  learning_rate: 0.001
-  num_epochs: 10
+
+# Data settings
+data:
+  dataloader:
+    batch_size: 32
+    num_workers: 4
+    pin_memory: true
+    shuffle: true
+    drop_last: false
 
 # Training parameters
 training:
-  batch_size: 32
-  num_workers: 4
   test_size: 0.2
+  num_epochs: 10
+  device: "cuda"
+  optimizer:
+    name: "adam"
+    learning_rate: 0.001
 
 # Logging parameters
 logging:
   log_dir: "logs"
-  experiment_name: "cnn_baseline"  # Will be auto-generated if null 
+  experiment_name: "cnn_baseline"  # Will be auto-generated if null
+
+# Optuna Tuning Parameters
+tuning:
+  n_trials: 50 # Default number of trials for this model
+  params:
+    training.optimizer.learning_rate:
+      type: float
+      low: 1e-5
+      high: 1e-2
+      log: true
+    training.num_epochs: # Example: Tune epochs too
+      type: int
+      low: 5
+      high: 20
+    # Add other parameters like dropout if applicable/desired
+    # model.dropout_rate:
+    #   type: float
+    #   low: 0.1
+    #   high: 0.7
+    data.dataloader.batch_size:
+      type: categorical
+      choices: [16, 32, 64] 

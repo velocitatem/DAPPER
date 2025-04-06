@@ -1,0 +1,34 @@
+# Configuration for LayoutLMv3 document classification
+
+model:
+  name: "layoutlmv3"  # Model identifier
+  model_name: "microsoft/layoutlmv3-base"  # Pre-trained model to use
+  learning_rate: 0.00005  # Using decimal to avoid scientific notation (5e-5)
+  weight_decay: 0.01
+  num_epochs: 5
+  apply_ocr: false  # Whether to use internal OCR
+  max_length: 512
+
+data:
+  processor_name: "microsoft/layoutlmv3-base"
+  apply_ocr: false  # Whether to use OCR within the processor
+  image_size: 224  # Size to resize images to
+
+training:
+  batch_size: 4  # Reduced to avoid memory issues
+  test_size: 0.2  # Portion of data to use for validation
+  device: "cuda"  # Use GPU if available
+  seed: 42
+
+dataloader:
+  num_workers: 4
+  prefetch_factor: 2
+  pin_memory: true
+  shuffle: true
+  drop_last: false
+  batch_size: 4  # Reduced to avoid memory issues
+
+logging:
+  log_dir: "logs"
+  experiment_name: "layoutlmv3_document_classification"
+  enable_tensorboard: true 

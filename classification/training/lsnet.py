@@ -129,7 +129,7 @@ class LSBlock(nn.Module):
         """
         Forward pass through the LS Block.
         
-        Args:
+        Args_:
             x: Input tensor of shape [batch_size, in_channels, height, width]
             
         Returns:
@@ -152,13 +152,14 @@ class LSNet(nn.Module):
     and effective feature extraction and classification.
     """
     
-    def __init__(self, num_classes=1000, model_size='t'):
+    def __init__(self, num_classes=16, model_size='s', dropout_rate=0.5):
         """
         Initialize the LSNet model.
         
         Args:
             num_classes: Number of classes to classify (default: 1000 for ImageNet)
             model_size: Size of the model ('t' for tiny, 's' for small, 'b' for base)
+            dropout_rate: Dropout probability (default: 0.5)
         """
         super(LSNet, self).__init__()
         
@@ -193,6 +194,9 @@ class LSNet(nn.Module):
         
         # Global average pooling
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        
+        # Dropout layer added
+        self.dropout = nn.Dropout(p=dropout_rate)
         
         # Classification head
         self.fc = nn.Linear(self.channels[3], num_classes)
@@ -260,6 +264,9 @@ class LSNet(nn.Module):
         # Flatten
         x = torch.flatten(x, 1)
         
+        # Apply dropout before classification head
+        x = self.dropout(x)
+        
         # Classification head
         x = self.fc(x)
         
@@ -303,10 +310,12 @@ class LSNetClassifier:
             freeze_backbone: Whether to freeze the backbone
             config: Configuration dictionary containing model and training parameters
         """
+        # Determine dropout_rate: precedence to config, then direct param, then default 0.5
         if config is not None:
             # Initialize from config
             self.num_classes = config['model'].get('num_classes', 1000)
             self.model_size = config['model'].get('name', 't').split('_')[1]  # Extract t/s/b from lsnet_t/s/b
+            self.dropout_rate = config['model'].get('dropout_rate', 0.5) # Read dropout from config
             self.pretrained = config['model'].get('pretrained', False)
             self.freeze_backbone = config['model'].get('freeze_backbone', False)
             
@@ -336,6 +345,7 @@ class LSNetClassifier:
             # Initialize from direct parameters
             self.num_classes = num_classes if num_classes is not None else 1000
             self.model_size = model_size
+            self.dropout_rate = 0.5 # Default dropout if not using config (can be overridden by config later if needed)
             self.learning_rate = learning_rate
             self.weight_decay = weight_decay
             self.num_epochs = num_epochs
@@ -358,7 +368,11 @@ class LSNetClassifier:
             logger.info(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
             
         # Initialize model
-        self.model = LSNet(num_classes=self.num_classes, model_size=self.model_size)
+        self.model = LSNet(
+            num_classes=self.num_classes, 
+            model_size=self.model_size, 
+            dropout_rate=self.dropout_rate # Pass dropout rate
+        )
         self.model.to(self.device)
         
         # Load pre-trained weights if requested
@@ -458,9 +472,22 @@ class LSNetClassifier:
             if os.path.exists(model_path):
                 logger.info(f"Loading pre-trained weights from {model_path}")
                 checkpoint = torch.load(model_path, map_location=self.device)
-                self.model.load_state_dict(checkpoint['model_state_dict'])
+                
+                # Check if 'model_state_dict' key exists
+                if 'model_state_dict' in checkpoint:
+                    self.model.load_state_dict(checkpoint['model_state_dict'])
+                    logger.info("Successfully loaded pre-trained model state dict.")
+                elif isinstance(checkpoint, dict) and all(isinstance(k, str) for k in checkpoint.keys()):
+                     # Try loading directly if it looks like a raw state_dict
+                     self.model.load_state_dict(checkpoint)
+                     logger.info("Loaded pre-trained weights directly (assumed raw state dict).")
+                else:
+                    logger.error(f"Checkpoint file {model_path} does not contain 'model_state_dict' key or a valid state dict.")
+                    # Decide how to proceed: maybe raise error or just warn and continue without pretraining
+                    # For now, just warn and continue
+                    logger.warning("Continuing without loading pre-trained weights due to missing key.")
             else:
-                logger.warning(f"Pre-trained weights not found at {model_path}")
+                logger.warning(f"Pre-trained weights file not found at {model_path}. Skipping pre-trained weights loading.")
         except Exception as e:
             logger.error(f"Error loading pre-trained weights: {e}")
     
@@ -510,13 +537,11 @@ class LSNetClassifier:
         
         # Training loop
         best_val_accuracy = 0.0
-        patience = 5
+        patience = 10
         patience_counter = 0
         early_stopping = False
         
         for epoch in range(self.num_epochs):
-            if early_stopping:
-                break
                 
             self.model.train()
             running_loss = 0.0
@@ -564,11 +589,12 @@ class LSNetClassifier:
                         'acc': 100. * correct / total
                     })
                     
-                    # Log batch metrics to TensorBoard
+                    # RE-ADD BATCH LOGGING
                     if tb_logger:
+                        batch_acc = (predicted == labels).sum().item() / labels.size(0) # Calculate batch accuracy
                         tb_logger.log_metrics({
                             'train/batch_loss': loss.item(),
-                            'train/batch_accuracy': 100. * correct / total,
+                            'train/batch_accuracy': 100. * batch_acc, # Log batch accuracy
                         }, step=epoch * len(train_loader) + batch_idx)
                     
                 except RuntimeError as e:
@@ -582,22 +608,26 @@ class LSNetClassifier:
             
             # Calculate epoch statistics
             epoch_loss = running_loss / total if total > 0 else 0
-            epoch_accuracy = correct / total if total > 0 else 0
+            epoch_accuracy = 100. * (correct / total if total > 0 else 0) # Use percentage
             
             # Log metrics
-            logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_accuracy:.4f}")
+            logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_accuracy:.2f}%") # Print percentage
             
+            # Log epoch metrics to TensorBoard
             if tb_logger:
                 tb_logger.log_metrics({
                     'train/epoch_loss': epoch_loss,
                     'train/epoch_accuracy': epoch_accuracy,
-                    'train/learning_rate': self.optimizer.param_groups[0]['lr']
-                }, step=epoch)
+                    # 'train/learning_rate': self.optimizer.param_groups[0]['lr'] # Optional
+                }, step=epoch+1) # Use epoch+1 for step
             
             # Validation
+            val_accuracy = None
+            val_loss = None # Initialize val_loss
             if val_loader is not None:
-                val_accuracy = self.evaluate(val_loader, tb_logger, epoch)
-                
+                val_accuracy, val_loss = self.evaluate(val_loader, tb_logger, epoch + 1) # Pass epoch+1
+                # logger.info already prints validation results in evaluate()
+
                 # Early stopping check
                 if val_accuracy > best_val_accuracy:
                     best_val_accuracy = val_accuracy
@@ -701,10 +731,10 @@ class LSNetClassifier:
         Returns:
             Validation accuracy
         """
-        # Verify model is on the correct device
+        # Verify model is on the correct device *once* at the beginning
         if next(self.model.parameters()).device != self.device:
-            logger.warning(f"Model is not on the expected device {self.device}. Moving it now.")
-            self.model = self.model.to(self.device)
+            logger.warning(f"Model is not on the expected device {self.device} during evaluation. Moving it now.")
+            self.model.to(self.device)
             
         self.model.eval()
         val_loss = 0.0
@@ -734,46 +764,57 @@ class LSNetClassifier:
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
-        # Calculate accuracy
-        accuracy = correct / total if total > 0 else 0
+        # Calculate accuracy and loss
+        avg_loss = val_loss / total if total > 0 else 0
+        accuracy = 100. * (correct / total if total > 0 else 0) # Use percentage
         
         # Log metrics to standard logger
-        logger.info(f"Validation Loss: {val_loss / total if total > 0 else 0:.4f}, Accuracy: {accuracy:.4f}")
+        logger.info(f"Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.2f}%") # Print percentage
         
-        # Log metrics to TensorBoard if available
-        if tb_logger:
+        # Log validation epoch metrics to TensorBoard if available
+        if tb_logger and step is not None:
             tb_logger.log_metrics({
-                'val/loss': val_loss / total if total > 0 else 0,
+                'val/loss': avg_loss,
                 'val/accuracy': accuracy
             }, step=step)
         
-        return accuracy
+        return accuracy, avg_loss # Return percentage accuracy and avg loss
     
-    def save(self, path: str, logger=None) -> None:
+    def save(self, path: str) -> None:
         """
         Save the model to disk.
-        
+
         Args:
-            path: Path to save the model
-            logger: Optional logger for logging
+            path: Path to save the model to
         """
-        # Create directory if it doesn't exist
+        # Ensure the directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
-        # Save model state
-        torch.save({
+        # Keep model on its original device
+        # self.model.cpu()  # Removed: Keep model on its device
+        
+        # Prepare checkpoint dictionary
+        checkpoint = {
             'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
             'num_classes': self.num_classes,
             'model_size': self.model_size,
+            'dropout_rate': self.dropout_rate, # Save dropout rate
+            # Training state (optional, but good for resuming)
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
+            # Hyperparameters (optional)
             'learning_rate': self.learning_rate,
             'weight_decay': self.weight_decay,
-            'num_epochs': self.num_epochs,
+            'num_epochs': self.num_epochs, # Might be current epoch if saving mid-training
             'batch_size': self.batch_size,
             'num_workers': self.num_workers,
-            'device': str(self.device)
-        }, path)
+            'device': str(self.device) # Save the device info
+        }
         
+        # Save the checkpoint
+        torch.save(checkpoint, path)
+        
+        # Use the module-level logger instance (defined at the top)
         logger.info(f"Model saved to {path}")
     
     def load(self, path: str) -> None:
@@ -786,27 +827,60 @@ class LSNetClassifier:
         # Load model state
         checkpoint = torch.load(path, map_location=self.device)
         
-        # Update model parameters
-        self.num_classes = checkpoint['num_classes']
-        self.model_size = checkpoint['model_size']
-        self.learning_rate = checkpoint['learning_rate']
-        self.weight_decay = checkpoint['weight_decay']
-        self.num_epochs = checkpoint['num_epochs']
-        self.batch_size = checkpoint['batch_size']
-        self.num_workers = checkpoint['num_workers']
+        # Update model parameters stored in checkpoint
+        self.num_classes = checkpoint.get('num_classes', self.num_classes) # Use get with default
+        self.model_size = checkpoint.get('model_size', self.model_size)
+        self.dropout_rate = checkpoint.get('dropout_rate', 0.5) # Load dropout rate
+        # Training parameters (optional to load, depends on use case)
+        self.learning_rate = checkpoint.get('learning_rate', self.learning_rate)
+        self.weight_decay = checkpoint.get('weight_decay', self.weight_decay)
+        # self.num_epochs = checkpoint.get('num_epochs', self.num_epochs)
+        # self.batch_size = checkpoint.get('batch_size', self.batch_size)
+        # self.num_workers = checkpoint.get('num_workers', self.num_workers)
         
-        # Recreate model with updated parameters
-        self.model = LSNet(num_classes=self.num_classes, model_size=self.model_size)
+        # Recreate model with loaded parameters
+        self.model = LSNet(
+            num_classes=self.num_classes, 
+            model_size=self.model_size,
+            dropout_rate=self.dropout_rate
+        )
+        # Ensure model is on the correct device BEFORE loading state dict
+        self.model.to(self.device) 
         
-        # Load model state
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        
-        # Load optimizer state
+        # Load model state dict
+        if 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+             logger.warning(f"Checkpoint {path} missing 'model_state_dict'. Attempting to load checkpoint directly.")
+             try:
+                 self.model.load_state_dict(checkpoint)
+             except Exception as e:
+                 logger.error(f"Failed to load state dict directly from checkpoint {path}: {e}")
+                 # Handle error appropriately, e.g., raise or return
+
+        # Recreate and load optimizer state (ensure model parameters are passed correctly)
+        # Note: Recreating optimizer might reset state if parameters changed significantly
         self.optimizer = optim.AdamW(
-            self.model.parameters(), 
-            lr=self.learning_rate, 
+            self.model.parameters(),
+            lr=self.learning_rate,
             weight_decay=self.weight_decay
         )
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        
+        if 'optimizer_state_dict' in checkpoint:
+             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        else:
+             logger.warning(f"Checkpoint {path} missing 'optimizer_state_dict'. Optimizer state not loaded.")
+
+        # Recreate and load scheduler state (optional, depends on whether you continue training)
+        # Assuming CosineAnnealingLR for simplicity, adjust if using other schedulers
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, 
+            T_max=self.num_epochs, # Ensure num_epochs is appropriate
+            eta_min=self.learning_rate * 0.01 
+        )
+        if 'scheduler_state_dict' in checkpoint and self.scheduler:
+             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        else:
+             logger.warning(f"Checkpoint {path} missing 'scheduler_state_dict' or scheduler not defined. Scheduler state not loaded.")
+
+        # Use the module-level logger instance (defined at the top)
         logger.info(f"Model loaded from {path}") 

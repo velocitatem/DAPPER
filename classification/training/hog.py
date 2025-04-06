@@ -227,12 +227,6 @@ class HogClassifier:
             # Log progress
             if (batch_idx + 1) % 10 == 0:
                 logger.info(f"Processed {(batch_idx + 1) * train_loader.batch_size} images")
-                
-            # Log to TensorBoard if available
-            if tb_logger:
-                tb_logger.log_metrics({
-                    'train/processed_images': (batch_idx + 1) * train_loader.batch_size
-                }, step=batch_idx)
         
         # Convert to numpy arrays
         X_train = np.array(X_train)
@@ -248,32 +242,32 @@ class HogClassifier:
         
         # Calculate training accuracy
         train_predictions = self.model.predict(X_train)
-        train_accuracy = np.mean(train_predictions == y_train)
+        train_accuracy = 100. * np.mean(train_predictions == y_train) # Percentage
         logger.info(f"Training completed in {training_time:.2f} seconds")
-        logger.info(f"Training accuracy: {train_accuracy:.4f}")
+        logger.info(f"Training accuracy: {train_accuracy:.2f}%") # Print percentage
         
-        # Log training metrics
+        # Log final training metrics (use step=1 as it's not epoch-based)
         if tb_logger:
             tb_logger.log_metrics({
-                'train/accuracy': train_accuracy,
-                'train/time': training_time
-            })
+                'train/epoch_accuracy': train_accuracy,
+                # 'train/time': training_time # Optional
+            }, step=1)
         
         # Evaluate on validation set if provided
+        val_accuracy = None
         if val_loader is not None:
-            val_accuracy = self.evaluate(val_loader, tb_logger)
+            val_accuracy = self.evaluate(val_loader, tb_logger) # Removed step argument
             return val_accuracy
         
         return train_accuracy
     
-    def evaluate(self, val_loader, tb_logger=None, step=None):
+    def evaluate(self, val_loader, tb_logger=None): # Removed step argument
         """
         Evaluate the model on validation set.
         
         Args:
             val_loader: Validation DataLoader
             tb_logger: TensorBoard logger instance for metrics visualization
-            step: Current step for logging
             
         Returns:
             Validation accuracy
@@ -303,32 +297,35 @@ class HogClassifier:
         
         # Make predictions
         val_predictions = self.model.predict(X_val)
-        val_accuracy = np.mean(val_predictions == y_val)
+        val_accuracy = 100. * np.mean(val_predictions == y_val) # Percentage
         
         # Calculate probabilities if the model supports it
+        # Note: Classification report and CM logging remain useful here
         if hasattr(self.model, 'predict_proba'):
             val_probabilities = self.model.predict_proba(X_val)
             
             # Log detailed metrics if TensorBoard logger is available
             if tb_logger:
-                # Create confusion matrix
-                cm = confusion_matrix(y_val, val_predictions)
-                
-                # Log metrics
-                tb_logger.log_metrics({
-                    'val/accuracy': val_accuracy,
-                    'val/confusion_matrix': cm
-                }, step=step)
-                
-                # Log classification report
-                report = classification_report(y_val, val_predictions)
-                logger.info("\nClassification Report:\n" + report)
+                 # Create confusion matrix
+                 cm = confusion_matrix(y_val, val_predictions)
+                 # TODO: Log confusion matrix to TensorBoard if desired
+                 
+                 # Log classification report
+                 report = classification_report(y_val, val_predictions)
+                 logger.info("\nClassification Report:\n" + report)
         
-        logger.info(f"Validation accuracy: {val_accuracy:.4f}")
+        logger.info(f"Validation accuracy: {val_accuracy:.2f}%") # Print percentage
+
+        # Log final validation metric (use step=1)
+        if tb_logger:
+             tb_logger.log_metrics({
+                 'val/accuracy': val_accuracy,
+                 # No 'val/epoch_loss' for HOG
+             }, step=1)
         
         return val_accuracy
     
-    def save(self, path: str, logger=None) -> None:
+    def save(self, path: str) -> None:
         """
         Save the trained model to disk.
         

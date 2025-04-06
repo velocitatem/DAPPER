@@ -17,4 +17,6 @@ if __name__ == "__main__":
     print(dataset.duplicated(subset=['image']).sum())
     # any repeated labels?
     # plot the distribution of the labels
+    # howmany classes
+    print(dataset['label'].nunique())
 
