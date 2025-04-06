@@ -128,7 +128,7 @@ CNNClassifier is a classic convolutional neural network tailored specifically fo
 - Does not leverage textual information.
 
 
-![](../../model_images/cnn.png)
+<img src="../../model_images/cnn.png" style="max-width: 800px;">
 
 ## 2. LSNetClassifier (Local-Scale Network)
 
@@ -146,7 +146,7 @@ LSNet is an advanced convolutional architecture focused on extracting rich visua
 - Better suited for capturing fine-grained document visual characteristics, like formats and layouts.
 - Does not use textual content from OCR.
 
-![](../../model_images/lsnet.png)
+<img src="../../model_images/lsnet.png" style="max-width: 800px;">
 
 ## 3. EAMLClassifier (Enhanced Multi-level Attention Network)
 
@@ -164,7 +164,7 @@ EAML combines text and image modalities into a unified multimodal architecture. 
 - Effectively leverages both visual layout and textual content (OCR data).
 - Well-suited to documents like invoices where both visual and textual clues determine classification.
 
-![](../../model_images/eaml.png)
+<img src="../../model_images/eaml.png" style="max-width: 800px;">
 
 ## 4. HybridClassifier
 
@@ -182,7 +182,7 @@ HybridClassifier integrates the strengths of LSNet (for visual feature extractio
 - Maximally exploits your dataset's multimodal nature (visual + textual content).
 - Offers high classification accuracy due to deep multimodal fusion capabilities.
 
-![](../../model_images/hybrid.png)
+<img src="../../model_images/hybrid.png" style="max-width: 800px;">
 
 ## 5. ResNetClassifier (Residual Network)
 
@@ -199,7 +199,7 @@ ResNetClassifier leverages a pre-trained ResNet18 architecture, renowned for its
 - Primarily uses image data.
 - Powerful due to pre-training and fine-tuning but doesn't directly use textual OCR data unless separately combined.
 
-![](../../model_images/resnet.png)
+<img src="../../model_images/resnet.png" style="max-width: 800px;">
 
 ## Comparison Table of the Models
 
