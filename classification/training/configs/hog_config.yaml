@@ -20,7 +20,7 @@ training:
 # Logging parameters
 logging:
   log_dir: "logs"
-  experiment_name: "hog_sunday_night_baseline"  # Will be auto-generated if null
+  experiment_name: "hog_baseline"  # Will be auto-generated if null
 
 # Optuna Tuning Parameters
 tuning:

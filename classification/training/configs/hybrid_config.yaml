@@ -1,5 +1,5 @@
 # Hybrid Classifier Configuration
-# This configuration combines LSNet/ResNet for image processing and EAML for text processing
+# This configuration combines LSNet for image processing and EAML for text processing
 
 model:
   name: "hybrid"
@@ -9,17 +9,12 @@ model:
   word_hidden_dim: 64  # Dimension of word-level GRU hidden state
   sent_hidden_dim: 128  # Dimension of sentence-level GRU hidden state
   lsnet_model_size: "s"  # LSNet model size ('t', 's', or 'b')
-  dropout: 0.6  # Increased dropout rate for stronger regularization
-  
-  # ResNet parameters (set use_resnet to true to use ResNet instead of LSNet)
-  use_resnet: false  # Whether to use ResNet instead of LSNet
-  resnet_model_name: "resnet50"  # Options: resnet18, resnet34, resnet50, resnet101
-  resnet_pretrained: true  # Whether to use pre-trained ResNet weights
+  dropout: 0.5  # Dropout rate for regularization
   
   # Training parameters
   learning_rate: 0.0005  # Learning rate for the optimizer
-  weight_decay: 0.03  # Increased weight decay for stronger regularization
-  num_epochs: 70 # Number of training epochs
+  weight_decay: 0.01  # Weight decay for the optimizer
+  num_epochs: 50  # Number of training epochs
   use_ocr_text: true  # Whether to use OCR text from the dataset
 
 # Training parameters
@@ -29,23 +24,6 @@ training:
   test_size: 0.2  # Proportion of the dataset to use for validation
   patience: 10  # Number of epochs to wait for improvement before early stopping
   mixed_precision: true  # Whether to use mixed precision training
-  scheduler_type: "cosine"  # Type of learning rate scheduler: "cosine", "onecycle", or "plateau"
-  
-  # Optimizer and learning rate scheduling
-  scheduler:
-    cosine:
-      T_0: 10  # Number of epochs before first restart
-      T_mult: 2  # Multiplication factor for restart interval
-      eta_min: 0.000001  # Minimum learning rate
-    onecycle:
-      pct_start: 0.3  # Percentage of iterations to reach peak LR
-      div_factor: 25  # Initial LR division factor
-      final_div_factor: 1000  # Final LR division factor
-    plateau:
-      factor: 0.5  # Factor by which to reduce learning rate
-      patience: 5  # Number of epochs with no improvement after which LR will be reduced
-      threshold: 0.0001  # Threshold for measuring the improvement
-  
   datasets:  # List of datasets to use for training
     - "rvl_cdip"
     - "kaggle_invoices"
@@ -69,6 +47,6 @@ training:
 # Logging parameters
 logging:
   log_dir: "logs/hybrid"  # Directory to save logs
-  experiment_name: "hybrid_sunday_night_baseline"  # Will be auto-generated if null
+  experiment_name: null  # Will be auto-generated if null
   save_dir: "models/hybrid"  # Directory to save model checkpoints
   log_interval: 10  # Number of batches between logging 

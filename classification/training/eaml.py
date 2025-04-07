@@ -386,7 +386,7 @@ class EAMLClassifier:
 
                 self.optimizer.zero_grad(set_to_none=True)
 
-                with torch.amp.autocast('cuda'):
+                with torch.cuda.amp.autocast(enabled=self.device.type == 'cuda'):
                     outputs = self.model(docs, images)
                     loss = self.criterion(outputs, labels)
 

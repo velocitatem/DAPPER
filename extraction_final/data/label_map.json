@@ -1,0 +1,16 @@
+{
+  "0": "O",
+  "1": "TOTAL_AMOUNT",
+  "2": "CURRENCY",
+  "3": "INVOICE_DATE",
+  "4": "DUE_DATE",
+  "5": "VENDOR_NAME",
+  "6": "SUBTOTAL",
+  "7": "TAX_AMOUNT",
+  "8": "CUSTOMER_NAME",
+  "9": "SERVICE_PERIOD",
+  "10": "TABLE",
+  "11": "LOGO",
+  "12": "INVOICE_NUMBER",
+  "13": "OTHER"
+}

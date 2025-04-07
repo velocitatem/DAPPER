@@ -16,7 +16,11 @@ data_cache/
 .venv/
 .venv
 *.pkl
-
+# Output directories
+/output/
+/output*/
+/data /
+/results/
 
 pids.txt
 model_images/cnn
@@ -30,7 +34,3 @@ model_images/resnet
 !model_images/hybrid.png
 !model_images/lsnet.png
 !model_images/resnet.png
-extracted_data.json
-models/
-extraction/
-CLAUDE.md

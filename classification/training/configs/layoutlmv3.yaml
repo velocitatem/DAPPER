@@ -30,5 +30,5 @@ dataloader:
 
 logging:
   log_dir: "logs"
-  experiment_name: "layoutlmv3_sunday_night_baseline"
+  experiment_name: "layoutlmv3_document_classification"
   enable_tensorboard: true 
