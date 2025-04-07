@@ -32,6 +32,60 @@ We've fine-tuned ResNet18 models specifically for document classification, achie
 ### Ensemble Self-Attention Mutual Learning (EAML)
 Our multimodal approach combines visual features with OCR text extraction for superior accuracy on text-heavy documents.
 
+## Data to Training Pipeline
+
+DAPPER implements a comprehensive end-to-end pipeline from data processing to model training:
+
+### Data Management
+
+- **MinIO Integration**: Scalable object storage for document images with standardized naming conventions (`src_<dataset>_cls_<class>_idx_<index>_<aug-info>.jpg`)
+- **Multi-Source Dataset Loading**: Parallel loading from diverse document sources including:
+  - RVL-CDIP (general document types)
+  - Kaggle Invoices dataset
+  - Hugging Face Invoices dataset
+
+### Data Processing Pipeline
+
+1. **Dataset Loading**: The `loader.py` module combines multiple document datasets with `get_full_dataset()` function
+2. **Data Augmentation**: The `augmentor.py` module provides:
+   - Geometric transformations (rotation, perspective, affine)
+   - Color adjustments (brightness, contrast, hue)
+   - Noise addition and random erasing
+   - Resolution adjustments for standardization
+3. **OCR Processing**: Automatic text extraction using Tesseract OCR with:
+   - Text confidence scoring
+   - Bounding box identification
+   - Parallel processing for efficiency
+
+### Training Infrastructure
+
+1. **Dataset Preparation**:
+   - `MinioImageDataset` for image-only models
+   - `MinioMultiModalDataset` for models requiring both image and OCR text
+   - Automatic label mapping and standardization
+
+2. **Model Selection**:
+   - Multiple architectures available through a unified interface
+   - Models: HOG, CNN, ResNet, LSNet (T/S/B), EAML, LayoutLMv3, Hybrid
+
+3. **Training Pipeline**:
+   - Configurable hyperparameters via YAML configuration files
+   - TensorBoard integration for monitoring
+   - Optimized DataLoaders with prefetching and parallel workers
+   - Model checkpointing and early stopping
+   - Comprehensive metrics tracking (accuracy, precision, recall, F1)
+
+4. **Transfer Learning**:
+   - Pre-trained foundation models fine-tuned for document understanding
+   - Cross-modal knowledge transfer for multimodal approaches
+
+### Evaluation and Analysis
+
+- Performance metrics across different document types
+- Confusion matrix visualization
+- Model interpretability through attention visualization
+- Comparative benchmarking between model architectures
+
 ## Document Types Supported
 
 DAPPER accurately classifies 16 document types including:
@@ -98,14 +152,6 @@ extractor = RuleBasedExtractor()
 invoice_data = extractor.extract(document_text)
 print(f"Invoice #: {invoice_data.invoice_number}, Total: {invoice_data.total_amount}")
 ```
-
-## Performance Benchmarks
-
-| Model         | Accuracy | Inference Time | Model Size |
-|---------------|----------|----------------|------------|
-| LSNet-T       | 94.2%    | 15ms           | 43MB       |
-| ResNet18      | 92.7%    | 23ms           | 44MB       |
-| EAML          | 95.3%    | 37ms           | 62MB       |
 
 ## Use Cases
 
