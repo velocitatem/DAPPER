@@ -381,6 +381,7 @@ def main(args):
     # Train model
     blacklist= ["cnn", "layoutlmv3", "resnet", "eaml"]
     TRAIN_MODEL = False if model_name in blacklist else True
+    TRAIN_MODEL = False
     save_dir = config["logging"].get("save_dir", f"models/{model_name}")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"{experiment_name}.pth")
@@ -485,7 +486,7 @@ def main(args):
     plt.xlabel('Predicted Label')
     
     # Save confusion matrix plot
-    cm_path = os.path.join(log_dir, 'confusion_matrix.png')
+    cm_path = os.path.join(log_dir, f'{model_name}_confusion_matrix.png')
     plt.savefig(cm_path)
     plt.close()
     
@@ -507,5 +508,8 @@ def main(args):
 #
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    try:
+        main(args)
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
 

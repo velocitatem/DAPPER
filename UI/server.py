@@ -51,6 +51,11 @@ def image_to_base64(image, format="PNG"):
 
 model_name = "resnet50"
 # Model variable that will be initialized in the lifespan
+models = {
+    "resnet50": "/home/velocitatem/Documents/University/Third Year/Statistical Learning/final_project/models/resnet/resnet_sunday_night_baseline.pth",
+    "eaml": "/home/velocitatem/Documents/University/Third Year/Statistical Learning/final_project/models/eaml/eaml_sunday_night_baseline.pth",
+    "cnn": "/home/velocitatem/Documents/University/Third Year/Statistical Learning/final_project/models/cnn/cnn_sunday_night_baseline.pth",
+}
 model = None
 
 @asynccontextmanager
@@ -62,7 +67,8 @@ async def lifespan(app: FastAPI):
         model = get_model(model_name, num_classes=len(CLASSES))
         
         # Load the saved weights
-        model_path = os.path.join(root_dir, "models", f"{model_name}_best.pth")
+        model_path = models[model_name]
+        print(f"Loading model weights from {model_path}")
         if os.path.exists(model_path):
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
@@ -121,7 +127,7 @@ async def get_index():
 async def health_check():
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "healthy", "model": "cnn"}
+    return {"status": "healthy", "model": model_name}
 
 @app.post("/classify")
 async def classify_document(file: UploadFile = File(...)):

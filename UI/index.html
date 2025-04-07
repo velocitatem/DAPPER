@@ -1074,27 +1074,6 @@
 
         // Simulate invoice extraction (in a real app, this would be API calls)
         function simulateInvoiceExtraction() {
-            // Sample extracted data
-            extractedData = [
-                { field: 'Invoice Number', value: 'INV-' + Math.floor(Math.random() * 10000), confidence: Math.floor(Math.random() * 10) + 85, editable: false },
-                { field: 'Invoice Date', value: new Date().toISOString().split('T')[0], confidence: Math.floor(Math.random() * 10) + 88, editable: false },
-                { field: 'Due Date', value: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], confidence: Math.floor(Math.random() * 10) + 82, editable: false },
-                { field: 'Issuer Name', value: ['Acme Inc.', 'Global Corp', 'Tech Solutions'][Math.floor(Math.random() * 3)], confidence: Math.floor(Math.random() * 10) + 90, editable: false },
-                { field: 'Recipient Name', value: ['Client A', 'Customer B', 'Partner C'][Math.floor(Math.random() * 3)], confidence: Math.floor(Math.random() * 10) + 87, editable: false },
-                { field: 'Subtotal', value: '$' + (Math.random() * 1000 + 100).toFixed(2), confidence: Math.floor(Math.random() * 10) + 85, editable: false },
-                { field: 'Tax', value: '$' + (Math.random() * 100).toFixed(2), confidence: Math.floor(Math.random() * 10) + 80, editable: false },
-                { field: 'Total', value: '$' + (Math.random() * 1200 + 100).toFixed(2), confidence: Math.floor(Math.random() * 10) + 95, editable: false }
-            ];
-            
-            // Render extracted data table
-            renderExtractedData();
-            
-            // Simulate document highlights
-            simulateDocumentHighlights();
-        }
-
-        // Extract invoice data using API
-        async function simulateInvoiceExtraction() {
             progressBar.style.width = '75%';
             progressText.textContent = 'Extracting invoice data...';
             document.getElementById('extraction-spinner').classList.remove('bg-indigo-600');
@@ -1106,111 +1085,219 @@
             
             try {
                 // Call extraction API
-                const response = await fetch(`${API_URL}/extract_invoice`, {
+                const response = fetch(`${API_URL}/extract_invoice`, {
                     method: 'POST',
                     body: formData
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                
-                // Update progress to show completion
-                progressBar.style.width = '100%';
-                progressText.textContent = 'Extraction complete!';
-                document.getElementById('extraction-spinner').classList.remove('bg-indigo-100');
-                document.getElementById('extraction-spinner').classList.add('bg-indigo-600');
-                
-                // Process extraction results
-                if (result.success) {
-                    // Map API response to extracted data format
-                    const extraction = result.extraction_result;
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+                    }
                     
-                    // Convert confidence scores to a scale of 0-100 if they're not already
-                    const getConfidenceScore = (field, scores) => {
-                        if (!scores || !scores[field]) return 80; // Default confidence
-                        const score = scores[field];
-                        return score > 1 ? score : Math.round(score * 100); // Convert to percentage if needed
-                    };
+                    return response.json();
+                }).then(result => {
+                    // Update progress to show completion
+                    progressBar.style.width = '100%';
+                    progressText.textContent = 'Extraction complete!';
+                    document.getElementById('extraction-spinner').classList.remove('bg-indigo-100');
+                    document.getElementById('extraction-spinner').classList.add('bg-indigo-600');
                     
-                    extractedData = [
-                        { 
-                            field: 'Invoice Number', 
-                            value: extraction.invoice_number || 'Not detected', 
-                            confidence: getConfidenceScore('invoice_number', extraction.confidence_scores),
-                            editable: false 
-                        },
-                        { 
-                            field: 'Invoice Date', 
-                            value: extraction.date || 'Not detected', 
-                            confidence: getConfidenceScore('date', extraction.confidence_scores),
-                            editable: false 
-                        },
-                        { 
-                            field: 'Due Date', 
-                            value: extraction.due_date || 'Not detected', 
-                            confidence: getConfidenceScore('due_date', extraction.confidence_scores),
-                            editable: false 
-                        },
-                        { 
-                            field: 'Issuer Name', 
-                            value: extraction.issuer_name || 'Not detected', 
-                            confidence: getConfidenceScore('issuer_name', extraction.confidence_scores),
-                            editable: false 
-                        },
-                        { 
-                            field: 'Recipient Name', 
-                            value: extraction.recipient_name || 'Not detected', 
-                            confidence: getConfidenceScore('recipient_name', extraction.confidence_scores),
-                            editable: false 
-                        },
-                        { 
-                            field: 'Total Amount', 
-                            value: extraction.total_amount || 'Not detected', 
-                            confidence: getConfidenceScore('total_amount', extraction.confidence_scores),
-                            editable: false 
+                    // Process extraction results
+                    if (result.success) {
+                        // Map API response to extracted data format
+                        const extraction = result.extraction_result;
+                        
+                        // Convert confidence scores to a scale of 0-100 if they're not already
+                        const getConfidenceScore = (field, scores) => {
+                            if (!scores || !scores[field]) return 80; // Default confidence
+                            const score = scores[field];
+                            return score > 1 ? score : Math.round(score * 100); // Convert to percentage if needed
+                        };
+                        
+                        // Store bounding boxes for visualization
+                        extraction.bounding_boxes = extraction.bounding_boxes || {};
+
+                        // Create more accurate default bounding boxes based on natural document layouts
+                        // These are positioned more realistically based on common invoice patterns
+                        const defaultBoundingBoxes = {
+                            invoice_number: { x: 0.65, y: 0.15, width: 0.25, height: 0.04 },
+                            date: { x: 0.65, y: 0.18, width: 0.25, height: 0.04 },
+                            due_date: { x: 0.65, y: 0.21, width: 0.25, height: 0.04 },
+                            issuer_name: { x: 0.1, y: 0.1, width: 0.4, height: 0.05 },
+                            recipient_name: { x: 0.1, y: 0.25, width: 0.4, height: 0.06 },
+                            total_amount: { x: 0.7, y: 0.7, width: 0.2, height: 0.05 }
+                        };
+
+                        // Text detection to find actual text positions
+                        // Scan the raw text to find keywords and their approximate locations
+                        let detectedTextPositions = {};
+                        if (extraction.raw_text) {
+                            const lines = extraction.raw_text.split('\n');
+                            const totalLines = lines.length;
+                            
+                            // Scan for key terms to improve box positioning
+                            lines.forEach((line, index) => {
+                                const normalizedLine = line.toLowerCase();
+                                const yPosition = index / totalLines;
+                                
+                                // Look for keywords in each line
+                                if (normalizedLine.includes('invoice') && normalizedLine.includes('number') || 
+                                    normalizedLine.match(/inv[^a-z]*(no|num|#)/i)) {
+                                    detectedTextPositions.invoice_number = { y: yPosition };
+                                }
+                                if (normalizedLine.includes('date') && !normalizedLine.includes('due')) {
+                                    detectedTextPositions.date = { y: yPosition };
+                                }
+                                if (normalizedLine.includes('due date') || normalizedLine.includes('payment due')) {
+                                    detectedTextPositions.due_date = { y: yPosition };
+                                }
+                                if (normalizedLine.includes('total') || normalizedLine.includes('amount due')) {
+                                    detectedTextPositions.total_amount = { y: yPosition };
+                                }
+                            });
                         }
-                    ];
-                    
-                    // Add extraction method info to the UI
-                    const methodInfo = document.createElement('div');
-                    methodInfo.className = 'text-xs text-gray-500 mt-2';
-                    methodInfo.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Extraction method: ${extraction.extraction_method || 'unknown'}`;
-                    
-                    // Find the correct place to add the method info
-                    const extractionSection = document.querySelector('#invoice-extraction-section .p-4.bg-green-50');
-                    if (extractionSection && !document.getElementById('extraction-method-info')) {
-                        methodInfo.id = 'extraction-method-info';
-                        extractionSection.appendChild(methodInfo);
+
+                        // Merge default bounding boxes with detected positions and API-provided boxes
+                        for (const field of ['invoice_number', 'date', 'due_date', 'issuer_name', 'recipient_name', 'total_amount']) {
+                            // Start with default box
+                            const defaultBox = defaultBoundingBoxes[field];
+                            
+                            // If we detected the field in text, adjust Y position
+                            if (detectedTextPositions[field]) {
+                                defaultBox.y = detectedTextPositions[field].y;
+                            }
+                            
+                            // Use API box if available, otherwise use our improved default
+                            extraction.bounding_boxes[field] = extraction.bounding_boxes[field] || defaultBox;
+                        }
+
+                        // Check if the extraction actually found values and adjust boxes
+                        // Don't show boxes for "Not detected" fields
+                        if (extraction.invoice_number === null || extraction.invoice_number === undefined || 
+                            extraction.invoice_number === "Not detected") {
+                            extraction.bounding_boxes.invoice_number = null;
+                        }
+                        if (extraction.date === null || extraction.date === undefined || 
+                            extraction.date === "Not detected") {
+                            extraction.bounding_boxes.date = null;
+                        }
+                        if (extraction.due_date === null || extraction.due_date === undefined || 
+                            extraction.due_date === "Not detected") {
+                            extraction.bounding_boxes.due_date = null;
+                        }
+                        if (extraction.issuer_name === null || extraction.issuer_name === undefined || 
+                            extraction.issuer_name === "Not detected") {
+                            extraction.bounding_boxes.issuer_name = null;
+                        }
+                        if (extraction.recipient_name === null || extraction.recipient_name === undefined || 
+                            extraction.recipient_name === "Not detected") {
+                            extraction.bounding_boxes.recipient_name = null;
+                        }
+                        if (extraction.total_amount === null || extraction.total_amount === undefined || 
+                            extraction.total_amount === "Not detected") {
+                            extraction.bounding_boxes.total_amount = null;
+                        }
+
+                        extractedData = [
+                            { 
+                                field: 'Invoice Number', 
+                                value: extraction.invoice_number || 'Not detected', 
+                                confidence: getConfidenceScore('invoice_number', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.invoice_number
+                            },
+                            { 
+                                field: 'Invoice Date', 
+                                value: extraction.date || 'Not detected', 
+                                confidence: getConfidenceScore('date', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.date
+                            },
+                            { 
+                                field: 'Due Date', 
+                                value: extraction.due_date || 'Not detected', 
+                                confidence: getConfidenceScore('due_date', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.due_date
+                            },
+                            { 
+                                field: 'Issuer Name', 
+                                value: extraction.issuer_name || 'Not detected', 
+                                confidence: getConfidenceScore('issuer_name', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.issuer_name
+                            },
+                            { 
+                                field: 'Recipient Name', 
+                                value: extraction.recipient_name || 'Not detected', 
+                                confidence: getConfidenceScore('recipient_name', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.recipient_name
+                            },
+                            { 
+                                field: 'Total Amount', 
+                                value: extraction.total_amount || 'Not detected', 
+                                confidence: getConfidenceScore('total_amount', extraction.confidence_scores),
+                                editable: false,
+                                boundingBox: extraction.bounding_boxes.total_amount
+                            }
+                        ];
+                        
+                        // Add extraction method info to the UI
+                        const methodInfo = document.createElement('div');
+                        methodInfo.className = 'text-xs text-gray-500 mt-2';
+                        methodInfo.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Extraction method: ${extraction.extraction_method || 'unknown'}`;
+                        
+                        // Find the correct place to add the method info
+                        const extractionSection = document.querySelector('#invoice-extraction-section .p-4.bg-green-50');
+                        if (extractionSection && !document.getElementById('extraction-method-info')) {
+                            methodInfo.id = 'extraction-method-info';
+                            extractionSection.appendChild(methodInfo);
+                        }
+                        
+                    } else {
+                        // Handle extraction failure
+                        extractedData = [
+                            { field: 'Extraction Status', value: 'Failed to extract data', confidence: 0, editable: false },
+                            { field: 'Error', value: result.error || 'Unknown error', confidence: 0, editable: false }
+                        ];
+                        
+                        if (result.raw_text) {
+                            // Add raw text for user reference
+                            extractedData.push({ 
+                                field: 'Raw Text', 
+                                value: result.raw_text.substring(0, 200) + '...', 
+                                confidence: 100, 
+                                editable: false 
+                            });
+                        }
+                        
+                        showToast('Invoice extraction failed. Manual correction may be needed.', 'warning');
                     }
                     
-                } else {
-                    // Handle extraction failure
+                    // Render extracted data table
+                    renderExtractedData();
+                    
+                    // Create document highlights using the bounding box data
+                    simulateDocumentHighlights();
+                }).catch(error => {
+                    console.error('Error extracting invoice data:', error);
+                    
+                    // Update progress to show failure
+                    progressBar.style.width = '100%';
+                    progressText.textContent = 'Extraction failed!';
+                    
+                    // Show error message
+                    showToast(`Failed to extract invoice data: ${error.message}`, 'error');
+                    
+                    // Set basic error data
                     extractedData = [
-                        { field: 'Extraction Status', value: 'Failed to extract data', confidence: 0, editable: false },
-                        { field: 'Error', value: result.error || 'Unknown error', confidence: 0, editable: false }
+                        { field: 'Extraction Status', value: 'Failed', confidence: 0, editable: false },
+                        { field: 'Error', value: error.message, confidence: 0, editable: false }
                     ];
                     
-                    if (result.raw_text) {
-                        // Add raw text for user reference
-                        extractedData.push({ 
-                            field: 'Raw Text', 
-                            value: result.raw_text.substring(0, 200) + '...', 
-                            confidence: 100, 
-                            editable: false 
-                        });
-                    }
-                    
-                    showToast('Invoice extraction failed. Manual correction may be needed.', 'warning');
-                }
-                
-                // Render extracted data table
-                renderExtractedData();
-                
-                // Simulate document highlights
-                simulateDocumentHighlights();
+                    // Render extracted data table
+                    renderExtractedData();
+                });
                 
             } catch (error) {
                 console.error('Error extracting invoice data:', error);
@@ -1377,40 +1464,53 @@
                 ctx.textAlign = 'center';
                 ctx.fillText('PDF Preview with Highlights', highlightedPdfCanvas.width/2, highlightedPdfCanvas.height/2);
                 
-                // Add simulated highlight boxes
-                const fields = [
-                    { name: 'Invoice Number', x: 50, y: 100, width: 100, height: 20 },
-                    { name: 'Invoice Date', x: 200, y: 100, width: 80, height: 20 },
-                    { name: 'Due Date', x: 300, y: 100, width: 80, height: 20 },
-                    { name: 'Issuer Name', x: 50, y: 200, width: 200, height: 30 },
-                    { name: 'Recipient Name', x: 50, y: 250, width: 200, height: 30 },
-                    { name: 'Subtotal', x: 300, y: 400, width: 80, height: 20 },
-                    { name: 'Tax', x: 300, y: 430, width: 80, height: 20 },
-                    { name: 'Total', x: 300, y: 460, width: 80, height: 20 }
-                ];
-                
-                fields.forEach(field => {
-                    const box = document.createElement('div');
-                    box.className = 'highlight-box';
-                    box.style.left = `${field.x}px`;
-                    box.style.top = `${field.y}px`;
-                    box.style.width = `${field.width}px`;
-                    box.style.height = `${field.height}px`;
-                    box.setAttribute('data-field', field.name);
+                // Add highlight boxes from extraction results
+                for (const item of extractedData) {
+                    if (!item.boundingBox) continue;
                     
-                    box.addEventListener('mouseenter', function() {
+                    // Skip items with "Not detected" value
+                    if (item.value === "Not detected") continue;
+                    
+                    // Convert relative positions to absolute for PDF canvas
+                    const box = {
+                        x: item.boundingBox.x * highlightedPdfCanvas.width,
+                        y: item.boundingBox.y * highlightedPdfCanvas.height,
+                        width: item.boundingBox.width * highlightedPdfCanvas.width,
+                        height: item.boundingBox.height * highlightedPdfCanvas.height
+                    };
+                    
+                    // Create highlight box with label
+                    const highlightBox = document.createElement('div');
+                    highlightBox.className = 'highlight-box';
+                    highlightBox.style.left = `${box.x}px`;
+                    highlightBox.style.top = `${box.y}px`;
+                    highlightBox.style.width = `${box.width}px`;
+                    highlightBox.style.height = `${box.height}px`;
+                    highlightBox.setAttribute('data-field', item.field);
+                    
+                    // Add a small label to identify the field
+                    const label = document.createElement('div');
+                    label.className = 'absolute -top-5 left-0 text-xs font-medium text-indigo-800 bg-indigo-100 px-1 rounded';
+                    label.textContent = item.field;
+                    label.style.fontSize = '8px';
+                    label.style.display = 'none'; // Only show on hover
+                    highlightBox.appendChild(label);
+                    
+                    // Show label on hover
+                    highlightBox.addEventListener('mouseenter', function() {
                         const fieldName = this.getAttribute('data-field');
+                        this.querySelector('div').style.display = 'block';
                         highlightTableRow(fieldName);
                     });
                     
-                    box.addEventListener('mouseleave', function() {
+                    highlightBox.addEventListener('mouseleave', function() {
+                        this.querySelector('div').style.display = 'none';
                         unhighlightAllTableRows();
                     });
                     
-                    highlightedPdf.appendChild(box);
-                    highlightBoxes.push(box);
-                });
-                
+                    highlightedPdf.appendChild(highlightBox);
+                    highlightBoxes.push(highlightBox);
+                }
             } else {
                 highlightedPdf.classList.add('hidden');
                 highlightedImg.classList.remove('hidden');
@@ -1421,42 +1521,56 @@
                     
                     // After image loads, add highlight boxes
                     highlightedImg.onload = function() {
-                        // Simulate some highlight boxes
                         const imgWidth = highlightedImg.width;
                         const imgHeight = highlightedImg.height;
                         
-                        const fields = [
-                            { name: 'Invoice Number', x: imgWidth * 0.1, y: imgHeight * 0.1, width: imgWidth * 0.2, height: imgHeight * 0.05 },
-                            { name: 'Invoice Date', x: imgWidth * 0.4, y: imgHeight * 0.1, width: imgWidth * 0.15, height: imgHeight * 0.05 },
-                            { name: 'Due Date', x: imgWidth * 0.6, y: imgHeight * 0.1, width: imgWidth * 0.15, height: imgHeight * 0.05 },
-                            { name: 'Issuer Name', x: imgWidth * 0.1, y: imgHeight * 0.2, width: imgWidth * 0.3, height: imgHeight * 0.07 },
-                            { name: 'Recipient Name', x: imgWidth * 0.1, y: imgHeight * 0.3, width: imgWidth * 0.3, height: imgHeight * 0.07 },
-                            { name: 'Subtotal', x: imgWidth * 0.7, y: imgHeight * 0.6, width: imgWidth * 0.2, height: imgHeight * 0.05 },
-                            { name: 'Tax', x: imgWidth * 0.7, y: imgHeight * 0.65, width: imgWidth * 0.2, height: imgHeight * 0.05 },
-                            { name: 'Total', x: imgWidth * 0.7, y: imgHeight * 0.7, width: imgWidth * 0.2, height: imgHeight * 0.05 }
-                        ];
-                        
-                        fields.forEach(field => {
-                            const box = document.createElement('div');
-                            box.className = 'highlight-box';
-                            box.style.left = `${field.x}px`;
-                            box.style.top = `${field.y}px`;
-                            box.style.width = `${field.width}px`;
-                            box.style.height = `${field.height}px`;
-                            box.setAttribute('data-field', field.name);
+                        // Add highlight boxes from extraction results
+                        for (const item of extractedData) {
+                            if (!item.boundingBox) continue;
                             
-                            box.addEventListener('mouseenter', function() {
+                            // Skip items with "Not detected" value
+                            if (item.value === "Not detected") continue;
+                            
+                            // Convert relative positions to absolute for image
+                            const box = {
+                                x: item.boundingBox.x * imgWidth,
+                                y: item.boundingBox.y * imgHeight,
+                                width: item.boundingBox.width * imgWidth,
+                                height: item.boundingBox.height * imgHeight
+                            };
+                            
+                            // Create highlight box with label
+                            const highlightBox = document.createElement('div');
+                            highlightBox.className = 'highlight-box';
+                            highlightBox.style.left = `${box.x}px`;
+                            highlightBox.style.top = `${box.y}px`;
+                            highlightBox.style.width = `${box.width}px`;
+                            highlightBox.style.height = `${box.height}px`;
+                            highlightBox.setAttribute('data-field', item.field);
+                            
+                            // Add a small label to identify the field
+                            const label = document.createElement('div');
+                            label.className = 'absolute -top-5 left-0 text-xs font-medium text-indigo-800 bg-indigo-100 px-1 rounded';
+                            label.textContent = item.field;
+                            label.style.fontSize = '8px';
+                            label.style.display = 'none'; // Only show on hover
+                            highlightBox.appendChild(label);
+                            
+                            // Show label on hover
+                            highlightBox.addEventListener('mouseenter', function() {
                                 const fieldName = this.getAttribute('data-field');
+                                this.querySelector('div').style.display = 'block';
                                 highlightTableRow(fieldName);
                             });
                             
-                            box.addEventListener('mouseleave', function() {
+                            highlightBox.addEventListener('mouseleave', function() {
+                                this.querySelector('div').style.display = 'none';
                                 unhighlightAllTableRows();
                             });
                             
-                            highlightedImg.parentNode.appendChild(box);
-                            highlightBoxes.push(box);
-                        });
+                            highlightedImg.parentNode.appendChild(highlightBox);
+                            highlightBoxes.push(highlightBox);
+                        }
                     };
                 };
                 reader.readAsDataURL(currentFile);

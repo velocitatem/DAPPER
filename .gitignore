@@ -34,3 +34,4 @@ extracted_data.json
 models/
 extraction/
 CLAUDE.md
+!evaluation_results/*.png
