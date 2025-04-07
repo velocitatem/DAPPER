@@ -31,6 +31,7 @@ model_images/resnet
 !model_images/lsnet.png
 !model_images/resnet.png
 extracted_data.json
+!models/resnet/resnet_sunday_night_baseline.pth
 models/
 CLAUDE.md
 !evaluation_results/*.png

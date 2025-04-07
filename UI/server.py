@@ -56,6 +56,7 @@ models = {
     "eaml": "/home/velocitatem/Documents/University/Third Year/Statistical Learning/final_project/models/eaml/eaml_sunday_night_baseline.pth",
     "cnn": "/home/velocitatem/Documents/University/Third Year/Statistical Learning/final_project/models/cnn/cnn_sunday_night_baseline.pth",
 }
+extractor_dir = "models/invoice_extractor"
 model = None
 
 @asynccontextmanager
@@ -250,7 +251,7 @@ async def extract_invoice_data(file: UploadFile = File(...)):
         
         try:
             # Initialize extractor with trained model
-            model_path = os.path.join(root_dir, "models/invoice_extractor")
+            model_path = os.path.join(root_dir, extractor_dir)
             extractor = MLExtractor(model_path=model_path, device="cpu")
             invoice_data = extractor.extract(temp_path)
             

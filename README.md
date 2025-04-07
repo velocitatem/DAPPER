@@ -210,6 +210,7 @@ python classification/training/train.py --config configs/training/cnn_config.yam
 ```
 
 Now in `UI/server.py` modify the path to your desired model, I would recommender RESNET.
+You can download the resnet classifier [heer](https://drive.google.com/file/d/1yygQP8i6Aw8VcpxUFdgZmMYVKHcpXU6Q/view?usp=sharing) and as for extraction, the latest weights are here in this [zip for the extractor weights](https://drive.google.com/file/d/19waYTXqFQ6Ta1RTnNlI9g7r4Fl4EpYau/view?usp=sharing) you should extract to a directory and then point to that directory.
 
 ### 3. Running the Website
 

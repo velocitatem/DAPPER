@@ -7,3 +7,5 @@ pillow
 pytesseract
 python-multipart
 tqdm
+tensorboard
+
