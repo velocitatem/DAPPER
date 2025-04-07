@@ -88,12 +88,12 @@ DAPPER implements a comprehensive end-to-end pipeline from data processing to mo
 
 ### Model Performance Metrics
 
-| Model    | Accuracy | Precision | Recall  | F1 Score | Eval Time (s) |
-|----------|----------|-----------|---------|----------|---------------|
-| resnet   | 0.8295   | 0.8302    | 0.8295  | 0.8295   | 3.96          |
-| eaml     | 0.6699   | 0.6880    | 0.6699  | 0.6674   | 5.26          |
-| cnn      | 0.7075   | 0.7068    | 0.7075  | 0.7056   | 3.90          |
-| lsnet_t  | 0.7432   | 0.7427    | 0.7432  | 0.7424   | 3.73          |
+| Model    | Accuracy | Precision | Recall  | F1 Score |
+|----------|----------|-----------|---------|----------|
+| resnet   | 0.8295   | 0.8302    | 0.8295  | 0.8295   |
+| eaml     | 0.6699   | 0.6880    | 0.6699  | 0.6674   |
+| cnn      | 0.7075   | 0.7068    | 0.7075  | 0.7056   |
+| lsnet_t  | 0.7432   | 0.7427    | 0.7432  | 0.7424   |
 
 ## Document Types Supported
 
