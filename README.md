@@ -139,6 +139,134 @@ docker-compose up -d
 streamlit run dashboard.py
 ```
 
+## Detailed Environment Setup
+
+### Prerequisites
+- Python 3.8+
+- Docker and Docker Compose
+- 8GB+ RAM recommended for model training
+
+### Step-by-Step Environment Setup
+
+1. **Create and activate a virtual environment**:
+   ```bash
+   # Using venv
+   python -m venv dapper-env
+   
+   # On Windows
+   dapper-env\Scripts\activate
+   
+   # On Linux/macOS
+   source dapper-env/bin/activate
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Install Tesseract OCR** (required for text extraction):
+   - On Ubuntu/Debian:
+     ```bash
+     sudo apt update
+     sudo apt install tesseract-ocr
+     ```
+   - On macOS:
+     ```bash
+     brew install tesseract
+     ```
+   - On Windows:
+     Download and install from https://github.com/UB-Mannheim/tesseract/wiki
+
+4. **Configure MinIO** (document storage):
+   ```bash
+   # Start the MinIO server
+   docker-compose up -d
+   
+   # Create required bucket: dapper (done w docker)
+   ```
+
+5. **Set environment variables** (create a .env file):
+   ```
+   MINIO_ENDPOINT=localhost:9000
+   MINIO_ACCESS_KEY=minioadmin
+   MINIO_SECRET_KEY=minioadmin
+   MINIO_SECURE=False
+   ```
+
+## Complete Pipeline Execution
+
+### 1. Data Preparation
+
+```bash
+# Download and prepare datasets
+python -m classification.data.loader
+```
+
+### 2. Model Training
+
+```bash
+python classification/training/train.py --config configs/training/cnn_config.yaml
+```
+
+Now in `UI/server.py` modify the path to your desired model, I would recommender RESNET.
+
+### 3. Running the Website
+
+```bash
+python -m UI.server
+```
+
+## Dependencies
+
+The main dependencies include:
+
+```
+torch>=1.12.0
+torchvision>=0.13.0
+streamlit>=1.18.0
+pillow>=9.2.0
+pytesseract>=0.3.10
+minio>=7.1.0
+numpy>=1.22.0
+pandas>=1.4.0
+scikit-learn>=1.0.0
+opencv-python>=4.6.0
+tqdm>=4.64.0
+pyyaml>=6.0
+matplotlib>=3.5.0
+transformers>=4.21.0
+python-dotenv>=0.20.0
+```
+
+Detailed dependency versions are specified in `requirements.txt`.
+
+## Configuration
+
+### Model Configuration
+
+
+Example configuration for LSNet-T model (`classification/training/configs/cnn_config.yaml`):
+```yaml
+model:
+  name: "cnn"
+  input_channels: 3 
+
+```
+
+### MinIO Configuration
+
+MinIO storage is configured through environment variables or a `.env` file:
+
+```
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_SECURE=False
+```
+
+
+
 ## Example Usage
 
 ```python
