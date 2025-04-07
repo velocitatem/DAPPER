@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['has_5focr_5fcolumn_0',['has_ocr_column',['../classclassification_1_1data_1_1minio__dataset_1_1MinioMultiModalDataset.html#a87670bdbbd235be8e29f6048c1efd219',1,'classification::data::minio_dataset::MinioMultiModalDataset']]],
+  ['health_5fcheck_1',['health_check',['../namespaceserver.html#a89624ec6f33e9d7e19a5d33b9211eee5',1,'server']]],
+  ['height_2',['height',['../classclassification_1_1data_1_1augmentor_1_1Augmentor.html#a4193991a14b24cf6260c615b05531ae8',1,'classification::data::augmentor::Augmentor']]],
+  ['heights_3',['heights',['../namespaceclassification_1_1analyze__images__dimensions.html#a122265e3f9e29693d1d8ea9a561b7a96',1,'classification::analyze_images_dimensions']]],
+  ['help_4',['help',['../namespacetune.html#a85593ecd1e767f8691c82980448730a2',1,'tune']]],
+  ['hfinvoicesloader_5',['HFInvoicesLoader',['../classclassification_1_1datasets_1_1loader__hf__invoices_1_1HFInvoicesLoader.html',1,'classification::datasets::loader_hf_invoices']]],
+  ['hog_6',['hog',['../namespacehog.html',1,'hog'],['../classhog_1_1HogClassifier.html#a3bfb6649cacb0a60d6e4bba470483523',1,'hog.HogClassifier.hog']]],
+  ['hog_20classifier_20configuration_7',['HOG Classifier Configuration',['../md_classification_2training_2README__TRAIN.html#autotoc_md41',1,'']]],
+  ['hog_20configuration_8',['HOG Configuration',['../md_classification_2training_2configs_2README__CONFIG.html#autotoc_md16',1,'']]],
+  ['hog_2epy_9',['hog.py',['../hog_8py.html',1,'']]],
+  ['hog_5fparams_10',['hog_params',['../classhog_1_1HogClassifier.html#a9cac0bd49538719ff4e53ac4a6f7f439',1,'hog::HogClassifier']]],
+  ['hogclassifier_11',['HogClassifier',['../classhog_1_1HogClassifier.html',1,'hog']]],
+  ['host_12',['host',['../namespaceserver.html#ae9fe947fe8af0c8524c72b5978fe9ef7',1,'server']]],
+  ['how_20each_20model_20fits_20your_20data_20and_20project_20requirements_3a_13',['How Each Model Fits Your Data and Project Requirements:',['../md_classification_2training_2README__TRAIN.html#autotoc_md51',1,'']]],
+  ['how_20it_20works_14',['How It Works',['../md_extraction_2README__INVOICE__EXTRACTION.html#autotoc_md61',1,'']]],
+  ['hybrid_15',['hybrid',['../namespacehybrid.html',1,'']]],
+  ['hybrid_20model_16',['Comparison with Original Hybrid Model',['../md_classification_2training_2README__RESNET__HYBRID.html#autotoc_md33',1,'']]],
+  ['hybrid_20model_20for_20document_20classification_17',['ResNet Hybrid Model for Document Classification',['../md_classification_2training_2README__RESNET__HYBRID.html',1,'']]],
+  ['hybrid_2epy_18',['hybrid.py',['../hybrid_8py.html',1,'']]],
+  ['hybridclassifier_19',['hybridclassifier',['../md_classification_2training_2README__TRAIN.html#autotoc_md48',1,'4. HybridClassifier'],['../classhybrid_1_1HybridClassifier.html',1,'hybrid.HybridClassifier']]],
+  ['hybridmodel_20',['HybridModel',['../classhybrid_1_1HybridModel.html',1,'hybrid']]],
+  ['hybridtrainer_21',['HybridTrainer',['../classhybrid_1_1HybridTrainer.html',1,'hybrid']]]
+];

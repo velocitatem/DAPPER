@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['classification_0',['classification',['../namespaceclassification.html',1,'']]],
+  ['classification_3a_3aanalyze_5fimages_5fdimensions_1',['analyze_images_dimensions',['../namespaceclassification_1_1analyze__images__dimensions.html',1,'classification']]],
+  ['classification_3a_3adata_2',['data',['../namespaceclassification_1_1data.html',1,'classification']]],
+  ['classification_3a_3adata_3a_3aanalysis_3',['analysis',['../namespaceclassification_1_1data_1_1analysis.html',1,'classification::data']]],
+  ['classification_3a_3adata_3a_3aaugmentor_4',['augmentor',['../namespaceclassification_1_1data_1_1augmentor.html',1,'classification::data']]],
+  ['classification_3a_3adata_3a_3aloader_5',['loader',['../namespaceclassification_1_1data_1_1loader.html',1,'classification::data']]],
+  ['classification_3a_3adata_3a_3aminio_5fdataset_6',['minio_dataset',['../namespaceclassification_1_1data_1_1minio__dataset.html',1,'classification::data']]],
+  ['classification_3a_3adata_3a_3aminio_5fhandler_7',['minio_handler',['../namespaceclassification_1_1data_1_1minio__handler.html',1,'classification::data']]],
+  ['classification_3a_3adatasets_8',['datasets',['../namespaceclassification_1_1datasets.html',1,'classification']]],
+  ['classification_3a_3adatasets_3a_3acache_5floader_9',['cache_loader',['../namespaceclassification_1_1datasets_1_1cache__loader.html',1,'classification::datasets']]],
+  ['classification_3a_3adatasets_3a_3aloader_5fhf_5finvoices_10',['loader_hf_invoices',['../namespaceclassification_1_1datasets_1_1loader__hf__invoices.html',1,'classification::datasets']]],
+  ['classification_3a_3adatasets_3a_3aloader_5fkaggle_5finvoices_11',['loader_kaggle_invoices',['../namespaceclassification_1_1datasets_1_1loader__kaggle__invoices.html',1,'classification::datasets']]],
+  ['classification_3a_3adatasets_3a_3aloader_5frvl_5fcdip_12',['loader_rvl_cdip',['../namespaceclassification_1_1datasets_1_1loader__rvl__cdip.html',1,'classification::datasets']]],
+  ['classification_3a_3adownload_5flsnet_13',['download_lsnet',['../namespaceclassification_1_1download__lsnet.html',1,'classification']]],
+  ['classification_3a_3amain_14',['main',['../namespaceclassification_1_1main.html',1,'classification']]],
+  ['classification_3a_3aoutofbag_5ftest_15',['outofbag_test',['../namespaceclassification_1_1outofbag__test.html',1,'classification']]],
+  ['classification_3a_3atraining_3a_3aeaml_16',['eaml',['../namespaceclassification_1_1training_1_1eaml.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3aevaluate_17',['evaluate',['../namespaceclassification_1_1training_1_1evaluate.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3ahog_18',['hog',['../namespaceclassification_1_1training_1_1hog.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3ahybrid_19',['hybrid',['../namespaceclassification_1_1training_1_1hybrid.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3alayout_20',['layout',['../namespaceclassification_1_1training_1_1layout.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3alsnet_21',['lsnet',['../namespaceclassification_1_1training_1_1lsnet.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3aresnet_22',['resnet',['../namespaceclassification_1_1training_1_1resnet.html',1,'classification::training']]],
+  ['classification_3a_3atraining_3a_3atrain_23',['train',['../namespaceclassification_1_1training_1_1train.html',1,'classification::training']]],
+  ['cnn_24',['cnn',['../namespacecnn.html',1,'']]]
+];

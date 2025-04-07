@@ -1,0 +1,18 @@
+var searchData=
+[
+  ['website_0',['3. Running the Website',['../index.html#autotoc_md89',1,'']]],
+  ['weight_5fdecay_1',['weight_decay',['../classcnn_1_1CNNClassifier.html#abf0364fd9c473997de2545cc58aa67b3',1,'cnn.CNNClassifier.weight_decay'],['../classresnet_1_1ResNetClassifier.html#a572e3a641211e59797407999b8f42c6b',1,'resnet.ResNetClassifier.weight_decay'],['../classlsnet_1_1LSNetClassifier.html#aa372d2da1bf8aeab72fff42d657e42ff',1,'lsnet.LSNetClassifier.weight_decay'],['../classhybrid_1_1HybridTrainer.html#a502d7552e3e10fb0ebb326d7ab1ae618',1,'hybrid.HybridTrainer.weight_decay'],['../classhybrid_1_1HybridClassifier.html#ac94daa2307a9554b8e03a5653d1a5258',1,'hybrid.HybridClassifier.weight_decay'],['../classlayout_1_1LayoutLMv3Classifier.html#a06efd21b605e7b5054145da417d4ae1a',1,'layout.LayoutLMv3Classifier.weight_decay']]],
+  ['width_2',['width',['../classclassification_1_1data_1_1augmentor_1_1Augmentor.html#a4ef98208b6b9c3f472cadd0792e014e9',1,'classification::data::augmentor::Augmentor']]],
+  ['widths_3',['widths',['../namespaceclassification_1_1analyze__images__dimensions.html#a40b3807ffd1c1bc3ee74ac96c558c2da',1,'classification::analyze_images_dimensions']]],
+  ['win_5fsize_4',['win_size',['../classhog_1_1HogClassifier.html#aa81e3d6780422f9f65468cd478ac7f7e',1,'hog::HogClassifier']]],
+  ['with_20ai_5',['Transform Your Document Processing with AI',['../index.html#autotoc_md67',1,'']]],
+  ['with_20original_20hybrid_20model_6',['Comparison with Original Hybrid Model',['../md_classification_2training_2README__RESNET__HYBRID.html#autotoc_md33',1,'']]],
+  ['word_5fattention_7',['word_attention',['../classeaml_1_1EAML.html#af2720c1008b4efed4065473ff91044b0',1,'eaml.EAML.word_attention'],['../classhybrid_1_1HybridModel.html#a385e1f98be6aae3ca9daea909a4ef644',1,'hybrid.HybridModel.word_attention'],['../classhybrid_1_1ResNetHybridModel.html#a67cec240a64da3782795f1cd8cdd7fe3',1,'hybrid.ResNetHybridModel.word_attention']]],
+  ['word_5fgru_8',['word_gru',['../classeaml_1_1EAML.html#abb74d1070f9383ca14d09111c1249202',1,'eaml.EAML.word_gru'],['../classhybrid_1_1HybridModel.html#ad7a12d98507d2f35e24fe1b189f876a3',1,'hybrid.HybridModel.word_gru'],['../classhybrid_1_1ResNetHybridModel.html#a3e042b4a88684de5b66cdaf236cd457e',1,'hybrid.ResNetHybridModel.word_gru']]],
+  ['word_5fgru_5fdropout_9',['word_gru_dropout',['../classhybrid_1_1ResNetHybridModel.html#a638b2aa87ea761eb6561c8dc44f721a9',1,'hybrid.ResNetHybridModel.word_gru_dropout'],['../classhybrid_1_1HybridModel.html#a37aeaeb4a396d78a661565a6f65d3da4',1,'hybrid.HybridModel.word_gru_dropout']]],
+  ['word_5fhidden_5fdim_10',['word_hidden_dim',['../classhybrid_1_1HybridClassifier.html#aedd05b598a063cfc5297223c3112a430',1,'hybrid.HybridClassifier.word_hidden_dim'],['../classhybrid_1_1HybridTrainer.html#a21cafc5f2ccf54bbb09f108492a0c701',1,'hybrid.HybridTrainer.word_hidden_dim'],['../classeaml_1_1EAMLClassifier.html#a64e76778e4514924d3adca2bb1b5626c',1,'eaml.EAMLClassifier.word_hidden_dim'],['../classeaml_1_1EAML.html#a23e45f2be596038748cfc1e641799fc5',1,'eaml.EAML.word_hidden_dim']]],
+  ['wordattention_11',['WordAttention',['../classeaml_1_1WordAttention.html',1,'eaml']]],
+  ['works_12',['How It Works',['../md_extraction_2README__INVOICE__EXTRACTION.html#autotoc_md61',1,'']]],
+  ['world_20application_20and_20data_20sources_13',['Real World Application and Data Sources',['../md_classification_2test__data_2README__JFK.html',1,'']]],
+  ['writer_14',['writer',['../classlogger_1_1Logger.html#aa910f55838f9721b142cfd835bfbd2d8',1,'logger::Logger']]]
+];

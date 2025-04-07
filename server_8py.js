@@ -1,0 +1,28 @@
+var server_8py =
+[
+    [ "classify_document", "server_8py.html#aec4100eb15f100151510190588bb1ba6", null ],
+    [ "extract_invoice_data", "server_8py.html#a8d743184e3957ea9bc80bfc78557b992", null ],
+    [ "extract_text", "server_8py.html#a1edefceb4c7adbda68cf6a08546e1d1f", null ],
+    [ "get_index", "server_8py.html#a733f2e043d1887366eb4bee4b1786586", null ],
+    [ "health_check", "server_8py.html#a89624ec6f33e9d7e19a5d33b9211eee5", null ],
+    [ "image_to_base64", "server_8py.html#a99b096caeec9718c07c447ecdaeeafd3", null ],
+    [ "lifespan", "server_8py.html#accb68fc8e2ab82cf1c57c55823693648", null ],
+    [ "list_classes", "server_8py.html#aee8bc84618c009a2c5100d2c8b0438f6", null ],
+    [ "list_models", "server_8py.html#acb26d191aab8456628df8d3206512f30", null ],
+    [ "allow_credentials", "server_8py.html#abad812a27f7b3b5e311f581e4fd52875", null ],
+    [ "allow_headers", "server_8py.html#a8f3b5b4a9fc334ffd3fb927b741bc600", null ],
+    [ "allow_methods", "server_8py.html#a1212f7c1cf68c5734766557197cd037c", null ],
+    [ "allow_origins", "server_8py.html#a82de105b7de8bbdd9cd3f97b66a70e0c", null ],
+    [ "app", "server_8py.html#ad81539608721e4b8ffad6e7bb45dd34b", null ],
+    [ "CLASSES", "server_8py.html#ab043821b90e040a306ade63ccbf7b988", null ],
+    [ "device", "server_8py.html#ae94a9d8835089fb1ebc51e35099af480", null ],
+    [ "extractor_dir", "server_8py.html#a789deb518f48ca60b949147228c6dc86", null ],
+    [ "host", "server_8py.html#ae9fe947fe8af0c8524c72b5978fe9ef7", null ],
+    [ "model", "server_8py.html#add65a6afd76bc3c789707b33b5e3b20c", null ],
+    [ "model_name", "server_8py.html#aa75871febbc95a22bbbf9abbf13216e7", null ],
+    [ "models", "server_8py.html#a9cea1b5a9b47c658a178db12c1c0012d", null ],
+    [ "name", "server_8py.html#a704886b5db3559c120141de6629f4fb7", null ],
+    [ "port", "server_8py.html#ae0362f7d7e03199b2fb92f705b5efd32", null ],
+    [ "root_dir", "server_8py.html#acc8213902e09e1f93829ef75e4b51296", null ],
+    [ "transformations", "server_8py.html#aae702ee7e1919d6c014ec0ec379e37ef", null ]
+];

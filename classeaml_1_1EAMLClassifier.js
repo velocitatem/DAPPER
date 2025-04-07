@@ -1,0 +1,28 @@
+var classeaml_1_1EAMLClassifier =
+[
+    [ "__init__", "classeaml_1_1EAMLClassifier.html#a1898220c641a1997624e49e18c1bf0c0", null ],
+    [ "evaluate", "classeaml_1_1EAMLClassifier.html#a1b26c948a32f0bf8b7611184f5f3f534", null ],
+    [ "inference", "classeaml_1_1EAMLClassifier.html#afbc54a45cd75b5950232f07160216e31", null ],
+    [ "load", "classeaml_1_1EAMLClassifier.html#a1b156d2b44d459dc110794088234538d", null ],
+    [ "predict_proba", "classeaml_1_1EAMLClassifier.html#ae91fa89e77485f4169a0df8e56ed47e0", null ],
+    [ "preprocess_image", "classeaml_1_1EAMLClassifier.html#aa4b3b4e65d966f6437f545003a896e0b", null ],
+    [ "save", "classeaml_1_1EAMLClassifier.html#a2782e91cb8d268398960cdfc0d337840", null ],
+    [ "train_model", "classeaml_1_1EAMLClassifier.html#aaa9d524e16eeb9a4b1da08cfe65f1f1d", null ],
+    [ "criterion", "classeaml_1_1EAMLClassifier.html#a7255a118354eb2ca258ada5e3bdb7812", null ],
+    [ "device", "classeaml_1_1EAMLClassifier.html#a6cc6f99c12d642dcefc9449e1b6f7edd", null ],
+    [ "dropout", "classeaml_1_1EAMLClassifier.html#a8fe7cd539e72bd521bd2fff5c933db68", null ],
+    [ "embedding_dim", "classeaml_1_1EAMLClassifier.html#a21dc9e5fb72de734f5094ab4c8323d1d", null ],
+    [ "image_channels", "classeaml_1_1EAMLClassifier.html#a2af6c4e92bf3e9e4874ffd8e17b6008a", null ],
+    [ "image_feature_dim", "classeaml_1_1EAMLClassifier.html#a7ce9693c048ad76cc0e2066e851c0619", null ],
+    [ "image_size", "classeaml_1_1EAMLClassifier.html#acf6243248282f1a5927b287d5f291c49", null ],
+    [ "learning_rate", "classeaml_1_1EAMLClassifier.html#afc06ea99aeaba1fefb66b065e0daeb96", null ],
+    [ "model", "classeaml_1_1EAMLClassifier.html#a9b0f471cb524e562679fa2bb8307fe3b", null ],
+    [ "num_classes", "classeaml_1_1EAMLClassifier.html#a7f6ffd9fd37e36f5d8670165e4419886", null ],
+    [ "num_epochs", "classeaml_1_1EAMLClassifier.html#a7b4ddff162df05c03c2d6767188eaa70", null ],
+    [ "optimizer", "classeaml_1_1EAMLClassifier.html#a699f006732ce4badfc54c2651faffa8c", null ],
+    [ "sent_hidden_dim", "classeaml_1_1EAMLClassifier.html#a4a34338dd3933280524e83772ec21a9c", null ],
+    [ "transform", "classeaml_1_1EAMLClassifier.html#a6f70ececdd14e26588ad55ab407ff895", null ],
+    [ "use_ocr_text", "classeaml_1_1EAMLClassifier.html#a0ca589b10d0f3244cdf1aec324a80a98", null ],
+    [ "vocab_size", "classeaml_1_1EAMLClassifier.html#a9f6a91b31db192d6bded64a9a184f692", null ],
+    [ "word_hidden_dim", "classeaml_1_1EAMLClassifier.html#a64e76778e4514924d3adca2bb1b5626c", null ]
+];

@@ -1,0 +1,20 @@
+var searchData=
+[
+  ['evaluate_0',['evaluate',['../classeaml_1_1EAMLClassifier.html#a1b26c948a32f0bf8b7611184f5f3f534',1,'eaml.EAMLClassifier.evaluate()'],['../classhog_1_1HogClassifier.html#a078a4ca44989ee8a892cec6bea176ff3',1,'hog.HogClassifier.evaluate()'],['../classhybrid_1_1HybridTrainer.html#a058c670afc35dd07d1daec0bd5cf2772',1,'hybrid.HybridTrainer.evaluate()'],['../classlayout_1_1LayoutLMv3Classifier.html#ae93eb31c0bba25b99d46e48e324de853',1,'layout.LayoutLMv3Classifier.evaluate()'],['../classlsnet_1_1LSNetClassifier.html#a6839c53141630581a57f792ecca2b896',1,'lsnet.LSNetClassifier.evaluate()'],['../classresnet_1_1ResNetClassifier.html#a57f8d8d46bf71e0f24ff73f8d6837263',1,'resnet.ResNetClassifier.evaluate()'],['../classcnn_1_1CNNClassifier.html#a78e34664e1c6fcf0440a59adb595864b',1,'cnn.CNNClassifier.evaluate()']]],
+  ['evaluate_5fmodel_1',['evaluate_model',['../namespaceevaluate.html#af959060e30ba6084c30b9e7ecdee49cd',1,'evaluate']]],
+  ['extract_2',['extract',['../classextraction_1_1base__extractor_1_1BaseExtractor.html#aadc7cfcbaa96b32a436c04da5d68dee7',1,'extraction.base_extractor.BaseExtractor.extract()'],['../classextraction_1_1ml__extractor_1_1MLExtractor.html#a210be1714a190c24d83a32ad5af876a0',1,'extraction.ml_extractor.MLExtractor.extract()']]],
+  ['extract_5fall_5ffields_3',['extract_all_fields',['../namespaceextraction_1_1fallback.html#aa89f158b844ff877475fad9799d0947f',1,'extraction::fallback']]],
+  ['extract_5famount_4',['extract_amount',['../namespaceextraction_1_1fallback.html#a6171a0a279d63ee0aa57b24961fc6be9',1,'extraction.fallback.extract_amount()'],['../namespaceextraction_1_1utils.html#a4fdd05aa9246174a2b8efaa1b58d7ab1',1,'extraction.utils.extract_amount()']]],
+  ['extract_5fdue_5fdate_5',['extract_due_date',['../namespaceextraction_1_1fallback.html#a0ca5ed17e370774db982ee02110fd2bb',1,'extraction::fallback']]],
+  ['extract_5ffrom_5fpil_6',['extract_from_pil',['../namespaceextraction_1_1example__invoice__extraction.html#a52e0c4a5c5c515de7c95235e3899582e',1,'extraction::example_invoice_extraction']]],
+  ['extract_5fhog_5ffeatures_7',['extract_hog_features',['../classhog_1_1HogClassifier.html#aa330d33d088c2600c35ede62506d3fc5',1,'hog::HogClassifier']]],
+  ['extract_5finvoice_5fdata_8',['extract_invoice_data',['../namespaceserver.html#a8d743184e3957ea9bc80bfc78557b992',1,'server']]],
+  ['extract_5finvoice_5fnumber_9',['extract_invoice_number',['../namespaceextraction_1_1fallback.html#a4bfdb6e978a255c182d228617fb9b22c',1,'extraction::fallback']]],
+  ['extract_5fissue_5fdate_10',['extract_issue_date',['../namespaceextraction_1_1fallback.html#a53f273454269ccbdb878d911c530684d',1,'extraction::fallback']]],
+  ['extract_5fissuer_5fname_11',['extract_issuer_name',['../namespaceextraction_1_1fallback.html#ac276ea44fe0151fd977f3cf6db1a742b',1,'extraction::fallback']]],
+  ['extract_5frecipient_5fname_12',['extract_recipient_name',['../namespaceextraction_1_1fallback.html#abc0d3ef14291e44e7f0298452d27a87e',1,'extraction::fallback']]],
+  ['extract_5fsroie_5fdata_5fparallel_13',['extract_sroie_data_parallel',['../namespaceextraction_1_1example__invoice__extraction.html#a38270d2bfae43c640deb6aadbcde91fa',1,'extraction::example_invoice_extraction']]],
+  ['extract_5fsroie_5fdata_5fsequential_14',['extract_sroie_data_sequential',['../namespaceextraction_1_1example__invoice__extraction.html#a278c25b48d3ce44db07004b689a887b3',1,'extraction::example_invoice_extraction']]],
+  ['extract_5ftext_15',['extract_text',['../namespaceserver.html#a1edefceb4c7adbda68cf6a08546e1d1f',1,'server']]],
+  ['extract_5ftotal_5famount_16',['extract_total_amount',['../namespaceextraction_1_1fallback.html#ade13c40a5c298daf7b98f045307298c3',1,'extraction::fallback']]]
+];

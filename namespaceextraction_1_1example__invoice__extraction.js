@@ -1,0 +1,25 @@
+var namespaceextraction_1_1example__invoice__extraction =
+[
+    [ "SROIEDataset", "classextraction_1_1example__invoice__extraction_1_1SROIEDataset.html", "classextraction_1_1example__invoice__extraction_1_1SROIEDataset" ],
+    [ "_convert_predictions_to_data", "namespaceextraction_1_1example__invoice__extraction.html#a1e6994237acec24b56c5f12d72f4ca76", null ],
+    [ "compute_statistics", "namespaceextraction_1_1example__invoice__extraction.html#acdaf3065e5810c6680e4f0f72d952cad", null ],
+    [ "convert_to_pil_image", "namespaceextraction_1_1example__invoice__extraction.html#a41d56e7112b2b68a395330a1f5da78fc", null ],
+    [ "extract_from_pil", "namespaceextraction_1_1example__invoice__extraction.html#a52e0c4a5c5c515de7c95235e3899582e", null ],
+    [ "extract_sroie_data_parallel", "namespaceextraction_1_1example__invoice__extraction.html#a38270d2bfae43c640deb6aadbcde91fa", null ],
+    [ "extract_sroie_data_sequential", "namespaceextraction_1_1example__invoice__extraction.html#a278c25b48d3ce44db07004b689a887b3", null ],
+    [ "free_memory", "namespaceextraction_1_1example__invoice__extraction.html#a2cc9ef506b45ed351b6c6186de49ae02", null ],
+    [ "get_memory_usage", "namespaceextraction_1_1example__invoice__extraction.html#aecb60a8611135b4eaa108f58faef5ce7", null ],
+    [ "main", "namespaceextraction_1_1example__invoice__extraction.html#ae1b1c7e91972992fc13572894282dcd7", null ],
+    [ "normalize_bbox", "namespaceextraction_1_1example__invoice__extraction.html#a62812ded439ef93eef947360462fa3e6", null ],
+    [ "parse_args", "namespaceextraction_1_1example__invoice__extraction.html#afffcb0cdd483ddda791d354bfc4f3258", null ],
+    [ "prepare_datasets", "namespaceextraction_1_1example__invoice__extraction.html#abb5e9d18620525ec11ed488cb3c54b5f", null ],
+    [ "process_sample", "namespaceextraction_1_1example__invoice__extraction.html#a408b600147170c1af5331c4c67bf0bb0", null ],
+    [ "train_model", "namespaceextraction_1_1example__invoice__extraction.html#a20e4bb3e8cfe5aa086fcd24f21eb452d", null ],
+    [ "visualize_boxes", "namespaceextraction_1_1example__invoice__extraction.html#adb669be21b53ba541154045031dc49a2", null ],
+    [ "datefmt", "namespaceextraction_1_1example__invoice__extraction.html#acf2fefc333fb15376f39c161c75814cc", null ],
+    [ "device", "namespaceextraction_1_1example__invoice__extraction.html#a63293157628d087fd3543bffa1d953e8", null ],
+    [ "format", "namespaceextraction_1_1example__invoice__extraction.html#a3b9ee3d3a77fe32e04dc174d4e5f32ce", null ],
+    [ "level", "namespaceextraction_1_1example__invoice__extraction.html#a46435c6e8b3f019e8396892b86cbc5b7", null ],
+    [ "logger", "namespaceextraction_1_1example__invoice__extraction.html#a5c7a7ff02ce475a48764f843602e62fe", null ],
+    [ "model", "namespaceextraction_1_1example__invoice__extraction.html#ae5095d83cfc575bf1be323483ffe6dfa", null ]
+];

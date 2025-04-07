@@ -1,0 +1,26 @@
+var classresnet_1_1ResNetClassifier =
+[
+    [ "__init__", "classresnet_1_1ResNetClassifier.html#a0ec3b3d5d2d558a6a8ddac4bfdb013a9", null ],
+    [ "_create_model", "classresnet_1_1ResNetClassifier.html#aa7aa35df699f4cede2ef31eacacaacc7", null ],
+    [ "evaluate", "classresnet_1_1ResNetClassifier.html#a57f8d8d46bf71e0f24ff73f8d6837263", null ],
+    [ "inference", "classresnet_1_1ResNetClassifier.html#aa0ee9745ef1ddb9dff67cf702e89ab44", null ],
+    [ "load", "classresnet_1_1ResNetClassifier.html#a097c6fe607c42042ebc1b9c04df31915", null ],
+    [ "predict_proba", "classresnet_1_1ResNetClassifier.html#a50131b3503bed6e8cf71bc6484f8fed3", null ],
+    [ "preprocess_image", "classresnet_1_1ResNetClassifier.html#acdbd9ed3ce2ca458b4a4fd507131d279", null ],
+    [ "save", "classresnet_1_1ResNetClassifier.html#a7b0954e9715200b5f8e36935a64bae30", null ],
+    [ "train_model", "classresnet_1_1ResNetClassifier.html#ac62d053914cfcd6db4c030265e12c593", null ],
+    [ "batch_size", "classresnet_1_1ResNetClassifier.html#ace9d8f54d5a76351b8da8c5bf51fc20f", null ],
+    [ "criterion", "classresnet_1_1ResNetClassifier.html#aca2254d0b20fc4622e3dacc93e05556f", null ],
+    [ "device", "classresnet_1_1ResNetClassifier.html#a6daef4fe28bc33704fa5af20c6b9ac06", null ],
+    [ "dropout_rate", "classresnet_1_1ResNetClassifier.html#abf7a2e0daeb0cebf46eab1050f6c7948", null ],
+    [ "learning_rate", "classresnet_1_1ResNetClassifier.html#a5bee9e555de6157ebb96db03fd6cd3d1", null ],
+    [ "model", "classresnet_1_1ResNetClassifier.html#a52d007624888dfac3e0c300a55cef18f", null ],
+    [ "num_classes", "classresnet_1_1ResNetClassifier.html#ae01dc51390ed0eaad118af7915fd8515", null ],
+    [ "num_epochs", "classresnet_1_1ResNetClassifier.html#a93b3be0dc3f664b5ec5ee1cee3fc3ab8", null ],
+    [ "num_workers", "classresnet_1_1ResNetClassifier.html#ab22e961fa85728d495dbd5c45f5ec43a", null ],
+    [ "optimizer", "classresnet_1_1ResNetClassifier.html#ade4df553014cd10c058e88d9e5a05f53", null ],
+    [ "pretrained", "classresnet_1_1ResNetClassifier.html#a7f525aa81d7564211433a09fb053bd32", null ],
+    [ "scheduler", "classresnet_1_1ResNetClassifier.html#ab691524d05f249039570a105f40ab9ca", null ],
+    [ "trained_model_name", "classresnet_1_1ResNetClassifier.html#a02a39792cc40a4ddf31cec7b730bc3e9", null ],
+    [ "weight_decay", "classresnet_1_1ResNetClassifier.html#a572e3a641211e59797407999b8f42c6b", null ]
+];
