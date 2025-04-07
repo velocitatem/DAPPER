@@ -381,7 +381,6 @@ def main(args):
     # Train model
     blacklist= ["cnn", "layoutlmv3", "resnet", "eaml"]
     TRAIN_MODEL = False if model_name in blacklist else True
-    TRAIN_MODEL = False
     save_dir = config["logging"].get("save_dir", f"models/{model_name}")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"{experiment_name}.pth")

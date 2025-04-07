@@ -249,26 +249,10 @@ async def extract_invoice_data(file: UploadFile = File(...)):
         image.save(temp_path)
         
         try:
-            # Use rule-based extraction as fallback if model extraction fails
-            from extraction.rule_based_extractor import RuleBasedExtractor
-            
-            # Try ML extraction first with error handling
-            try:
-                # Initialize extractor with CPU device
-                extractor = MLExtractor(device="cpu")
-                invoice_data = extractor.extract(temp_path)
-            except Exception as model_error:
-                # Fallback to rule-based extraction
-                print(f"ML extraction failed: {str(model_error)}, falling back to rule-based")
-                rule_extractor = RuleBasedExtractor()
-                # Extract text first since rule extractor works on text
-                text = pytesseract.image_to_string(image)
-                invoice_data = rule_extractor.extract(text)
-                # Add metadata for tracking
-                if not invoice_data.metadata:
-                    invoice_data.metadata = {}
-                invoice_data.metadata['extraction_method'] = 'fallback_rule_based'
-                invoice_data.raw_text = text
+            # Initialize extractor with trained model
+            model_path = os.path.join(root_dir, "models/invoice_extractor")
+            extractor = MLExtractor(model_path=model_path, device="cpu")
+            invoice_data = extractor.extract(temp_path)
             
             # Convert to serializable format
             result = {
@@ -289,7 +273,7 @@ async def extract_invoice_data(file: UploadFile = File(...)):
             })
             
         except Exception as extraction_error:
-            # If both extraction methods fail, return raw OCR text
+            # If extraction fails, return raw OCR text
             text = pytesseract.image_to_string(image)
             return JSONResponse({
                 "success": False,

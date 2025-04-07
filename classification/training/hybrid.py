@@ -104,7 +104,7 @@ class HybridModel(nn.Module):
         self.text_feature_dim = sent_hidden_dim * 2
         
         # Multimodal fusion - Increase dropout for stronger regularization
-        higher_dropout = min(dropout * 1.5, 0.7)  # Increase dropout but cap at 0.7
+        higher_dropout = min(dropout * 1.5, 0.8)  # Increase dropout but cap at 0.8
         self.fusion_layer = nn.Sequential(
             nn.Linear(self.image_feature_dim + self.text_feature_dim, 512),
             nn.BatchNorm1d(512),  # Add BatchNorm for regularization
@@ -113,11 +113,15 @@ class HybridModel(nn.Module):
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),  # Add BatchNorm for regularization
             nn.ReLU(),
-            nn.Dropout(higher_dropout)
+            nn.Dropout(higher_dropout),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout)
         )
         
         # Add L2 regularization to the classifier
-        self.classifier = nn.Linear(256, num_classes)
+        self.classifier = nn.Linear(128, num_classes)
         
     ##
     # @brief Forward pass through the hybrid model
@@ -242,7 +246,7 @@ class ResNetHybridModel(nn.Module):
         self.text_feature_dim = sent_hidden_dim * 2
         
         # Multimodal fusion - Increase dropout for stronger regularization
-        higher_dropout = min(dropout * 1.5, 0.7)  # Increase dropout but cap at 0.7
+        higher_dropout = min(dropout * 1.5, 0.8)  # Increase dropout but cap at 0.8
         self.fusion_layer = nn.Sequential(
             nn.Linear(self.image_feature_dim + self.text_feature_dim, 512),
             nn.BatchNorm1d(512),  # Add BatchNorm for regularization
@@ -251,11 +255,15 @@ class ResNetHybridModel(nn.Module):
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),  # Add BatchNorm for regularization
             nn.ReLU(),
-            nn.Dropout(higher_dropout)
+            nn.Dropout(higher_dropout),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout)
         )
         
         # Add L2 regularization to the classifier
-        self.classifier = nn.Linear(256, num_classes)
+        self.classifier = nn.Linear(128, num_classes)
     
     ##
     # @brief Create and configure the ResNet model
@@ -464,13 +472,13 @@ class HybridTrainer:
         word_hidden_dim: int = 50,
         sent_hidden_dim: int = 50,
         lsnet_model_size: str = 's',
-        dropout: float = 0.6,  # Increased from 0.5 to 0.6
-        learning_rate: float = 0.0005,
-        weight_decay: float = 0.03,  # Increased from 0.01 to 0.03
+        dropout: float = 0.7,  # Increased from 0.6 to 0.7
+        learning_rate: float = 0.0003,  # Reduced from 0.0005 to 0.0003
+        weight_decay: float = 0.05,  # Increased from 0.03 to 0.05
         device: Optional[str] = None,
-        num_epochs: int = 50,
+        num_epochs: int = 70,
         save_dir: str = "models/hybrid",
-        patience: int = 10,
+        patience: int = 15,  # Increased from 10 to 15
         mixed_precision: bool = True,
         scheduler_type: str = "cosine",  # New parameter for scheduler selection
         use_ocr_text: bool = True,  # Added parameter for OCR text usage
@@ -637,11 +645,20 @@ class HybridTrainer:
             # T_mult is the factor by which T_0 is multiplied after each restart
             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer, 
-                T_0=10,  # Initial restart interval
-                T_mult=2,  # Multiply T_0 by this factor after each restart
-                eta_min=1e-6  # Minimum learning rate
+                T_0=20,  # Increased from 10 to 20 - longer initial restart interval
+                T_mult=2,  # Must be an integer (changed from 1.5)
+                eta_min=5e-7  # Reduced minimum learning rate
             )
-            logger.info("Using CosineAnnealingWarmRestarts scheduler")
+            
+            # Linear warmup function to apply separately
+            def warmup_scheduler(epoch, warmup_epochs=5):
+                if epoch < warmup_epochs:
+                    # Linear warmup from 10% to 100% of learning rate
+                    return self.learning_rate * (0.1 + 0.9 * (epoch / warmup_epochs))
+                else:
+                    return None  # Use cosine scheduler after warmup
+                
+            logger.info("Using CosineAnnealingWarmRestarts scheduler with linear warmup")
         elif self.scheduler_type == "onecycle":
             # One Cycle Policy
             # total_steps = num_epochs * len(train_loader)
@@ -772,7 +789,16 @@ class HybridTrainer:
             
             # Update cosine scheduler per epoch if used
             if self.scheduler_type == "cosine":
-                scheduler.step()
+                # Apply warmup if in warmup phase
+                warmup_epochs = 5
+                warmup_lr = warmup_scheduler(epoch, warmup_epochs)
+                
+                if warmup_lr is not None:
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] = warmup_lr
+                    logger.info(f"Warmup LR: {optimizer.param_groups[0]['lr']:.6f}")
+                else:
+                    scheduler.step(epoch - warmup_epochs)
             
             # Validation phase
             if val_loader is not None:

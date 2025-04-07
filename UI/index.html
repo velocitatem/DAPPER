@@ -47,13 +47,6 @@
             color: #991b1b;
         }
         
-        .highlight-box {
-            position: absolute;
-            border: 2px solid #4f46e5;
-            background-color: rgba(79, 70, 229, 0.2);
-            z-index: 10;
-        }
-        
         .document-viewer-container {
             position: relative;
             overflow: auto;
@@ -269,18 +262,6 @@
                                         </table>
                                     </div>
                                     
-                                    <!-- Highlighted Document Viewer -->
-                                    <div class="mt-6">
-                                        <h4 class="text-sm font-medium text-gray-700 mb-2">Document Highlights</h4>
-                                        <div class="document-viewer-container bg-white border border-gray-200 rounded-md overflow-hidden relative">
-                                            <img id="highlighted-document-img" src="" alt="Highlighted document" class="w-full h-auto hidden">
-                                            <div id="highlighted-pdf-preview" class="hidden relative">
-                                                <canvas id="highlighted-pdf-canvas" class="w-full"></canvas>
-                                                <!-- Highlight boxes will be added here by JavaScript -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
                                     <!-- Action Buttons -->
                                     <div class="flex flex-wrap gap-3 mt-6">
                                         <button id="export-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center">
@@ -399,7 +380,6 @@
         let currentFile = null;
         let isProcessing = false;
         let extractedData = [];
-        let highlightBoxes = [];
         const API_URL = window.location.origin;
         
         // History storage
@@ -593,7 +573,7 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${confidenceClass}">
+                        <span class="${confidenceClass} px-2 py-1 rounded-full text-xs">
                             ${entry.confidence.toFixed(1)}%
                         </span>
                     </td>
@@ -1202,43 +1182,37 @@
                                 field: 'Invoice Number', 
                                 value: extraction.invoice_number || 'Not detected', 
                                 confidence: getConfidenceScore('invoice_number', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.invoice_number
+                                editable: false
                             },
                             { 
                                 field: 'Invoice Date', 
                                 value: extraction.date || 'Not detected', 
                                 confidence: getConfidenceScore('date', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.date
+                                editable: false
                             },
                             { 
                                 field: 'Due Date', 
                                 value: extraction.due_date || 'Not detected', 
                                 confidence: getConfidenceScore('due_date', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.due_date
+                                editable: false
                             },
                             { 
                                 field: 'Issuer Name', 
                                 value: extraction.issuer_name || 'Not detected', 
                                 confidence: getConfidenceScore('issuer_name', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.issuer_name
+                                editable: false
                             },
                             { 
                                 field: 'Recipient Name', 
                                 value: extraction.recipient_name || 'Not detected', 
                                 confidence: getConfidenceScore('recipient_name', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.recipient_name
+                                editable: false
                             },
                             { 
                                 field: 'Total Amount', 
                                 value: extraction.total_amount || 'Not detected', 
                                 confidence: getConfidenceScore('total_amount', extraction.confidence_scores),
-                                editable: false,
-                                boundingBox: extraction.bounding_boxes.total_amount
+                                editable: false
                             }
                         ];
                         
@@ -1276,9 +1250,6 @@
                     
                     // Render extracted data table
                     renderExtractedData();
-                    
-                    // Create document highlights using the bounding box data
-                    simulateDocumentHighlights();
                 }).catch(error => {
                     console.error('Error extracting invoice data:', error);
                     
@@ -1437,162 +1408,6 @@
             document.getElementById('save-all-btn').remove();
             document.getElementById('correct-btn').classList.remove('hidden');
             renderExtractedData();
-        }
-
-        // Simulate document highlights
-        function simulateDocumentHighlights() {
-            const highlightedImg = document.getElementById('highlighted-document-img');
-            const highlightedPdf = document.getElementById('highlighted-pdf-preview');
-            const highlightedPdfCanvas = document.getElementById('highlighted-pdf-canvas');
-            
-            // Clear previous highlights
-            highlightBoxes.forEach(box => box.remove());
-            highlightBoxes = [];
-            
-            if (currentFile.type === 'application/pdf') {
-                highlightedImg.classList.add('hidden');
-                highlightedPdf.classList.remove('hidden');
-                
-                // Set up PDF canvas
-                highlightedPdfCanvas.width = 400;
-                highlightedPdfCanvas.height = 600;
-                const ctx = highlightedPdfCanvas.getContext('2d');
-                ctx.fillStyle = '#f3f4f6';
-                ctx.fillRect(0, 0, highlightedPdfCanvas.width, highlightedPdfCanvas.height);
-                ctx.fillStyle = '#9ca3af';
-                ctx.font = '16px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('PDF Preview with Highlights', highlightedPdfCanvas.width/2, highlightedPdfCanvas.height/2);
-                
-                // Add highlight boxes from extraction results
-                for (const item of extractedData) {
-                    if (!item.boundingBox) continue;
-                    
-                    // Skip items with "Not detected" value
-                    if (item.value === "Not detected") continue;
-                    
-                    // Convert relative positions to absolute for PDF canvas
-                    const box = {
-                        x: item.boundingBox.x * highlightedPdfCanvas.width,
-                        y: item.boundingBox.y * highlightedPdfCanvas.height,
-                        width: item.boundingBox.width * highlightedPdfCanvas.width,
-                        height: item.boundingBox.height * highlightedPdfCanvas.height
-                    };
-                    
-                    // Create highlight box with label
-                    const highlightBox = document.createElement('div');
-                    highlightBox.className = 'highlight-box';
-                    highlightBox.style.left = `${box.x}px`;
-                    highlightBox.style.top = `${box.y}px`;
-                    highlightBox.style.width = `${box.width}px`;
-                    highlightBox.style.height = `${box.height}px`;
-                    highlightBox.setAttribute('data-field', item.field);
-                    
-                    // Add a small label to identify the field
-                    const label = document.createElement('div');
-                    label.className = 'absolute -top-5 left-0 text-xs font-medium text-indigo-800 bg-indigo-100 px-1 rounded';
-                    label.textContent = item.field;
-                    label.style.fontSize = '8px';
-                    label.style.display = 'none'; // Only show on hover
-                    highlightBox.appendChild(label);
-                    
-                    // Show label on hover
-                    highlightBox.addEventListener('mouseenter', function() {
-                        const fieldName = this.getAttribute('data-field');
-                        this.querySelector('div').style.display = 'block';
-                        highlightTableRow(fieldName);
-                    });
-                    
-                    highlightBox.addEventListener('mouseleave', function() {
-                        this.querySelector('div').style.display = 'none';
-                        unhighlightAllTableRows();
-                    });
-                    
-                    highlightedPdf.appendChild(highlightBox);
-                    highlightBoxes.push(highlightBox);
-                }
-            } else {
-                highlightedPdf.classList.add('hidden');
-                highlightedImg.classList.remove('hidden');
-                
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    highlightedImg.src = e.target.result;
-                    
-                    // After image loads, add highlight boxes
-                    highlightedImg.onload = function() {
-                        const imgWidth = highlightedImg.width;
-                        const imgHeight = highlightedImg.height;
-                        
-                        // Add highlight boxes from extraction results
-                        for (const item of extractedData) {
-                            if (!item.boundingBox) continue;
-                            
-                            // Skip items with "Not detected" value
-                            if (item.value === "Not detected") continue;
-                            
-                            // Convert relative positions to absolute for image
-                            const box = {
-                                x: item.boundingBox.x * imgWidth,
-                                y: item.boundingBox.y * imgHeight,
-                                width: item.boundingBox.width * imgWidth,
-                                height: item.boundingBox.height * imgHeight
-                            };
-                            
-                            // Create highlight box with label
-                            const highlightBox = document.createElement('div');
-                            highlightBox.className = 'highlight-box';
-                            highlightBox.style.left = `${box.x}px`;
-                            highlightBox.style.top = `${box.y}px`;
-                            highlightBox.style.width = `${box.width}px`;
-                            highlightBox.style.height = `${box.height}px`;
-                            highlightBox.setAttribute('data-field', item.field);
-                            
-                            // Add a small label to identify the field
-                            const label = document.createElement('div');
-                            label.className = 'absolute -top-5 left-0 text-xs font-medium text-indigo-800 bg-indigo-100 px-1 rounded';
-                            label.textContent = item.field;
-                            label.style.fontSize = '8px';
-                            label.style.display = 'none'; // Only show on hover
-                            highlightBox.appendChild(label);
-                            
-                            // Show label on hover
-                            highlightBox.addEventListener('mouseenter', function() {
-                                const fieldName = this.getAttribute('data-field');
-                                this.querySelector('div').style.display = 'block';
-                                highlightTableRow(fieldName);
-                            });
-                            
-                            highlightBox.addEventListener('mouseleave', function() {
-                                this.querySelector('div').style.display = 'none';
-                                unhighlightAllTableRows();
-                            });
-                            
-                            highlightedImg.parentNode.appendChild(highlightBox);
-                            highlightBoxes.push(highlightBox);
-                        }
-                    };
-                };
-                reader.readAsDataURL(currentFile);
-            }
-        }
-
-        // Highlight table row when highlight box is hovered
-        function highlightTableRow(fieldName) {
-            const rows = extractedDataBody.querySelectorAll('tr');
-            rows.forEach(row => {
-                if (row.querySelector('td:first-child').textContent === fieldName) {
-                    row.classList.add('bg-indigo-50');
-                }
-            });
-        }
-
-        // Unhighlight all table rows
-        function unhighlightAllTableRows() {
-            const rows = extractedDataBody.querySelectorAll('tr');
-            rows.forEach(row => {
-                row.classList.remove('bg-indigo-50');
-            });
         }
 
         // Export data
@@ -1761,7 +1576,6 @@
         function resetForm() {
             currentFile = null;
             extractedData = [];
-            highlightBoxes = [];
             
             // Reset file input
             fileInput.value = '';

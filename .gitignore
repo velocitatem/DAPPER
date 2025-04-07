@@ -32,6 +32,5 @@ model_images/resnet
 !model_images/resnet.png
 extracted_data.json
 models/
-extraction/
 CLAUDE.md
 !evaluation_results/*.png

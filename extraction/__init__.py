@@ -5,7 +5,6 @@ This package contains tools for extracting structured information from invoice i
 """
 
 from .base_extractor import BaseExtractor, InvoiceData
-from .rule_based_extractor import RuleBasedExtractor
 from .utils import (
     normalize_date,
     extract_amount,
@@ -17,7 +16,6 @@ from .utils import (
 __all__ = [
     'BaseExtractor',
     'InvoiceData',
-    'RuleBasedExtractor',
     'normalize_date',
     'extract_amount',
     'find_keyword_context',
