@@ -178,6 +178,8 @@ streamlit run dashboard.py
    - On Windows:
      Download and install from https://github.com/UB-Mannheim/tesseract/wiki
 
+     You might need to also `apt-get install poppler-utils`
+
 4. **Configure MinIO** (document storage):
    ```bash
    # Start the MinIO server
