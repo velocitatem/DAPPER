@@ -1,11 +1,31 @@
-fastapi
-uvicorn
-torch
-torchvision
-pdf2image
-pillow
-pytesseract
-python-multipart
-tqdm
-tensorboard
+fastapi>=0.95.0
+uvicorn>=0.22.0
+torch>=1.12.0
+torchvision>=0.13.0
+pdf2image>=1.16.0
+pillow>=9.2.0
+pytesseract>=0.3.10
+python-multipart>=0.0.5
+tqdm>=4.64.0
+tensorboard>=2.12.0
+transformers>=4.21.0
 
+# Storage
+minio>=7.1.0
+
+# Data processing
+numpy>=1.22.0
+pandas>=1.4.0
+scikit-learn>=1.0.0
+opencv-python>=4.6.0
+
+# Configuration & utilities
+pyyaml>=6.0
+python-dotenv>=0.20.0
+matplotlib>=3.5.0
+
+# Docker (optional, for containerization)
+docker-compose>=2.0.0
+
+# Web interface
+streamlit>=1.18.0
