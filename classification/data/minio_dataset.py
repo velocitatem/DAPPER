@@ -48,8 +48,9 @@ class MinioImageDataset(Dataset):
     # @param dataframe DataFrame containing 'image' URLs and 'label' columns
     # @param bucket_name Name of the MinIO bucket to fetch images from
     # @param transform Optional transformations to apply to the images
+    # @param label_map Optional dictionary mapping label strings to integers
     #
-    def __init__(self, dataframe, bucket_name, transform=None):
+    def __init__(self, dataframe, bucket_name, transform=None, label_map=None):
         """
         Constructor for MinioImageDataset class
         
@@ -57,6 +58,7 @@ class MinioImageDataset(Dataset):
             dataframe: DataFrame containing 'image' URLs and 'label' columns
             bucket_name: Name of the MinIO bucket to fetch images from
             transform: Optional transformations to apply to the images
+            label_map: Optional dictionary mapping label strings to integers
         """
         self.df = dataframe.reset_index(drop=True)
         self.bucket_name = bucket_name
@@ -67,6 +69,20 @@ class MinioImageDataset(Dataset):
             secret_key="minioadmin",
             secure=False
         )
+
+        # Create label_map if not provided
+        if label_map is None and 'label' in self.df.columns:
+            unique_labels = self.df['label'].unique()
+            if any(not isinstance(label, (int, float)) for label in unique_labels):
+                logger.info("Creating label map from string labels to integers")
+                self.label_map = {str(label): i for i, label in enumerate(sorted(unique_labels))}
+                # Log the mapping for reference
+                for label, idx in self.label_map.items():
+                    logger.info(f"Label mapping: '{label}' -> {idx}")
+            else:
+                self.label_map = None
+        else:
+            self.label_map = label_map
 
     ##
     # @brief Returns the number of items in the dataset
@@ -116,10 +132,22 @@ class MinioImageDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        # Convert label to int and create tensor
-        label = torch.tensor(int(row['label']), dtype=torch.long)
+        # Process label
+        label_value = row['label']
+        
+        # Apply label mapping if available
+        if self.label_map is not None and str(label_value) in self.label_map:
+            label_idx = self.label_map[str(label_value)]
+            label = torch.tensor(label_idx, dtype=torch.long)
+        else:
+            # Try to convert directly to int
+            try:
+                label = torch.tensor(int(label_value), dtype=torch.long)
+            except (ValueError, TypeError):
+                logger.error(f"Could not convert label '{label_value}' to integer and no mapping found")
+                label = torch.tensor(-1, dtype=torch.long)  # Use -1 to indicate error
 
-        return image, label 
+        return image, label
 
 ##
 # @brief PyTorch Dataset for loading images and extracting text via OCR from MinIO

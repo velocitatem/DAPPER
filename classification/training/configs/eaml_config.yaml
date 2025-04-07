@@ -3,6 +3,7 @@
 model:
   name: eaml
   # Text Branch Hyperparameters
+  vocab_size: 30522      # Size of vocabulary for text embedding (BERT base uncased vocab size)
   embedding_dim: 100      # Dimension for word embeddings
   word_hidden_dim: 50     # Hidden dimension for word-level GRU (actual GRU uses 2*dim due to bidirectional)
   sent_hidden_dim: 50     # Hidden dimension for sentence-level GRU (actual GRU uses 2*dim due to bidirectional)
@@ -25,8 +26,9 @@ data:
     num_workers: 4          # Number of CPU workers for loading data (adjust based on system)
 
 training:
+  apply_ocr: true
   test_size: 0.2          # Proportion of dataset to use for validation split
-  num_epochs: 100 # Maximum number of training epochs
+  num_epochs: 55 # Maximum number of training epochs
   device: "cuda" # Device ('cuda', 'cpu', or null for auto-detect)
   optimizer:
     name: "adam" # Assuming Adam
@@ -48,7 +50,7 @@ training:
 
 logging:
   log_dir: "logs/"           # Base directory for logs and TensorBoard results
-  experiment_name: "eaml_baseline"     # Experiment name (subdirectory in log_dir). If null, generated automatically.
+  experiment_name: "eaml_sunday_night_baseline"     # Experiment name (subdirectory in log_dir). If null, generated automatically.
 
 # Optuna Tuning Parameters
 tuning:

@@ -676,7 +676,7 @@ class LSNetClassifier:
                 
                 try:
                     # Forward pass with automatic mixed precision
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast('cuda'):
                         outputs = self.model(images)
                         loss = self.criterion(outputs, labels)
                     
@@ -877,7 +877,7 @@ class LSNetClassifier:
         all_preds = []
         all_labels = []
         
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad(), torch.amp.autocast('cuda'):
             for images, labels in tqdm(val_loader, desc="Validation"):
                 # Move data to device
                 images = images.to(self.device, non_blocking=True)

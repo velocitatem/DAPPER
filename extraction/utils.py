@@ -1,6 +1,46 @@
+"""
+Utility functions for the extraction package.
+"""
+
+import logging
+import datetime
+import os
 import re
-from typing import List, Tuple, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+def get_standard_logger(name, log_level=logging.INFO):
+    """
+    Create a standardized logger with a specific format.
+    
+    Args:
+        name: Name of the logger
+        log_level: Logging level (default: INFO)
+        
+    Returns:
+        Logger instance
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(log_level)
+    
+    # Check if logger already has handlers
+    if not logger.handlers:
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        
+        # Create formatter
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # Add formatter to handler
+        console_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        logger.addHandler(console_handler)
+    
+    return logger
 
 def normalize_date(date_str: str) -> Optional[str]:
     """
@@ -25,7 +65,7 @@ def normalize_date(date_str: str) -> Optional[str]:
     # Try each format
     for fmt in formats:
         try:
-            date_obj = datetime.strptime(date_str, fmt)
+            date_obj = datetime.datetime.strptime(date_str, fmt)
             return date_obj.strftime('%Y-%m-%d')
         except ValueError:
             continue
@@ -78,24 +118,27 @@ def find_keyword_context(text: str, keyword: str, context_lines: int = 2) -> Lis
 
 def clean_text(text: str) -> str:
     """
-    Clean and normalize text.
+    Clean text by removing extra whitespace and normalizing line breaks.
     
     Args:
-        text: Input text
+        text: Text to clean
         
     Returns:
         Cleaned text
     """
-    # Remove extra whitespace
+    if not text:
+        return ""
+    
+    # Replace multiple whitespace with a single space
     text = re.sub(r'\s+', ' ', text)
     
-    # Normalize line endings
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # Replace multiple line breaks with a single one
+    text = re.sub(r'\n+', '\n', text)
     
-    # Remove special characters
-    text = re.sub(r'[^\w\s.,;:()/-]', '', text)
+    # Strip leading and trailing whitespace
+    text = text.strip()
     
-    return text.strip()
+    return text
 
 def split_into_sections(text: str) -> List[Tuple[str, str]]:
     """

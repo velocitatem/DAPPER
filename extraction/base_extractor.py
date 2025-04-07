@@ -16,6 +16,31 @@ class InvoiceData:
     confidence_scores: Optional[Dict[str, float]] = None
     metadata: Optional[Dict[str, Any]] = None
 
+    def __post_init__(self):
+        if self.confidence_scores is None:
+            self.confidence_scores = {}
+        if self.metadata is None:
+            self.metadata = {}
+
+    def to_dict(self):
+        """
+        Convert the invoice data to a dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the invoice data
+        """
+        return {
+            'invoice_number': self.invoice_number,
+            'date': self.date,
+            'due_date': self.due_date,
+            'total_amount': self.total_amount,
+            'issuer_name': self.issuer_name,
+            'recipient_name': self.recipient_name,
+            'raw_text': self.raw_text,
+            'confidence_scores': self.confidence_scores,
+            'metadata': self.metadata
+        }
+
 class BaseExtractor(ABC):
     """Abstract base class for invoice information extractors."""
     

@@ -1,3 +1,9 @@
+"""
+Invoice extraction package.
+
+This package contains tools for extracting structured information from invoice images.
+"""
+
 from .base_extractor import BaseExtractor, InvoiceData
 from .rule_based_extractor import RuleBasedExtractor
 from .utils import (

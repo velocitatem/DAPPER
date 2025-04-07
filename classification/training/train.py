@@ -37,6 +37,11 @@ import yaml
 from torchvision import transforms
 import pandas as pd
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from tqdm import tqdm
+
 # Set up logging and random seed
 logger = get_standard_logger("train")
 logger.info("Starting training")
@@ -355,13 +360,8 @@ def main(args):
     
     # Set up TensorBoard logger
     experiment_name = config["logging"].get("experiment_name", None)
-    
-    if experiment_name is None:
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        experiment_name = f"{model_name}_{timestamp}"
-    
-    log_dir = os.path.join(config["logging"].get("log_dir", "logs"), experiment_name)
-    tb_logger = Logger(log_dir=log_dir)
+    log_dir = config["logging"].get("log_dir", "logs")
+    tb_logger = Logger(log_dir=log_dir, experiment_name=experiment_name)
     
     # Train model
     model_kwargs = {**config["model"]}
@@ -379,34 +379,128 @@ def main(args):
         model_kwargs["weight_decay"] = model_kwargs.get("weight_decay", 0.01)
     
     # Train model
-    model = train_model(
-        model_name=model_name,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        tb_logger=tb_logger,
-        **model_kwargs
-    )
-    
-    # Save model
+    blacklist= ["cnn", "layoutlmv3", "resnet", "eaml"]
+    TRAIN_MODEL = False if model_name in blacklist else True
     save_dir = config["logging"].get("save_dir", f"models/{model_name}")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"{experiment_name}.pth")
-    
-    try:
-        logger.info(f"Saving model to {save_path}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if TRAIN_MODEL:
+        model = train_model(
+            model_name=model_name,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            tb_logger=tb_logger,
+            **model_kwargs
+        )
         
-        if hasattr(model, "save"):
-            model.save(save_path)
-        else:
-            model_dict = {
-                "model_state_dict": model.model.state_dict() if hasattr(model, "model") else model.state_dict(),
-                "config": config
-            }
-            torch.save(model_dict, save_path)
-    except Exception as e:
-        logger.error(f"Error saving model: {str(e)}")
+        # Save model
+        
+        try:
+            logger.info(f"Saving model to {save_path}")
+            
+            if hasattr(model, "save"):
+                model.save(save_path)
+            else:
+                model_dict = {
+                    "model_state_dict": model.model.state_dict() if hasattr(model, "model") else model.state_dict(),
+                    "config": config
+                }
+                torch.save(model_dict, save_path)
+        except Exception as e:
+            logger.error(f"Error saving model: {str(e)}")
+        
+        logger.info("Training complete")
+        model = model.model
+    else:
+        model = models[model_name](**model_kwargs)
+        model.load(save_path)
+        model = model.model
+        logger.info(f"Loaded model from {save_path}")
+    # Evaluate model on validation set
+    logger.info("Performing final model evaluation")
+    tb_logger.log_model_graph(model)
+    model.eval()
+    all_preds = []
+    all_labels = []
     
-    logger.info("Training complete")
+    with torch.no_grad():
+        # Check if model is EAML (which requires both docs and images)
+        if model_name == "eaml":
+            for batch_data in tqdm(val_loader, desc="Final evaluation"):
+                # Handle different batch data formats
+                if isinstance(batch_data, dict):
+                    docs = batch_data['text'].to(device)
+                    images = batch_data['image'].to(device)
+                    labels = batch_data['label']
+                elif isinstance(batch_data, (list, tuple)):
+                    docs, images, labels = batch_data
+                    docs = docs.to(device)
+                    images = images.to(device)
+                else:
+                    raise TypeError("Unsupported batch data type from DataLoader")
+                
+                outputs = model(docs, images)
+                _, predicted = torch.max(outputs.data, 1)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.numpy())
+        else:
+            # Standard case for models with single input
+            for images, labels in tqdm(val_loader, desc="Final evaluation"):
+                images = images.to(device)
+                outputs = model(images)
+                _, predicted = torch.max(outputs.data, 1)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.numpy())
+    
+    # Calculate metrics
+    accuracy = accuracy_score(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds, average='weighted')
+    recall = recall_score(all_labels, all_preds, average='weighted')
+    f1 = f1_score(all_labels, all_preds, average='weighted')
+    
+    # Generate confusion matrix
+    cm = confusion_matrix(all_labels, all_preds)
+    
+    # Log metrics
+    logger.info(f"Final Evaluation Metrics:")
+    logger.info(f"Accuracy: {accuracy:.4f}")
+    logger.info(f"Precision: {precision:.4f}")
+    logger.info(f"Recall: {recall:.4f}")
+    logger.info(f"F1 Score: {f1:.4f}")
+    
+    # Log to tensorboard
+    tb_logger.log_metrics({
+        'final_eval/accuracy': accuracy,
+        'final_eval/precision': precision, 
+        'final_eval/recall': recall,
+        'final_eval/f1': f1
+    })
+    
+    # Plot and save confusion matrix
+    plt.figure(figsize=(10,8))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title('Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    
+    # Save confusion matrix plot
+    cm_path = os.path.join(log_dir, 'confusion_matrix.png')
+    plt.savefig(cm_path)
+    plt.close()
+    
+    # Log confusion matrix to tensorboard
+    tb_logger.log_figure(f'final_eval/{model_name}_confusion_matrix', plt.gcf())
+    
+    # Generate classification report
+    class_report = classification_report(all_labels, all_preds)
+    logger.info("\nClassification Report:")
+    logger.info(class_report)
+    
+    # Save classification report
+    report_path = os.path.join(log_dir, f'{model_name}_classification_report.txt')
+    with open(report_path, 'w') as f:
+        f.write(class_report)
 
 ##
 # @brief Main execution block

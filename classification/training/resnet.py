@@ -68,7 +68,8 @@ class ResNetClassifier:
         num_epochs: int = 50,
         dropout_rate: float = 0.7,
         num_workers: int = 4,
-        batch_size: int = 64
+        batch_size: int = 64,
+        use_ocr_text: bool = False
     ):
         """
         Initialize the ResNet classifier.
@@ -148,7 +149,13 @@ class ResNetClassifier:
         
         # Create the model with pre-trained weights if specified
         if self.pretrained:
-            model = model_class(weights=models.ResNet18_Weights.DEFAULT)
+            weight_map = {
+                "resnet18": models.ResNet18_Weights.DEFAULT,
+                "resnet34": models.ResNet34_Weights.DEFAULT,
+                "resnet50": models.ResNet50_Weights.DEFAULT,
+                "resnet101": models.ResNet101_Weights.DEFAULT
+            }
+            model = model_class(weights=weight_map[self.trained_model_name])
         else:
             model = model_class(weights=None)
         
@@ -232,7 +239,7 @@ class ResNetClassifier:
             Validation accuracy or training accuracy
         """
         # Enable automatic mixed precision for faster training
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler('cuda')
         
         # Training loop
         best_val_accuracy = 0.0
@@ -264,7 +271,7 @@ class ResNetClassifier:
                 self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
                 
                 # Forward pass with automatic mixed precision
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast('cuda'):
                     outputs = self.model(images)
                     loss = self.criterion(outputs, labels)
                 
@@ -311,9 +318,10 @@ class ResNetClassifier:
                 }, step=epoch)
             
             # Validation
-            val_accuracy = None
+            val_result = None
             if val_loader is not None:
-                val_accuracy = self.evaluate(val_loader, tb_logger, epoch)
+                val_result = self.evaluate(val_loader, tb_logger, epoch)
+                val_accuracy, val_loss = val_result  # Unpack the tuple
                 
                 # Log validation metrics to standard logger
                 logger.info(f"Validation Accuracy: {val_accuracy:.4f}")
@@ -321,7 +329,8 @@ class ResNetClassifier:
                 # Log validation metrics to TensorBoard if available
                 if tb_logger:
                     tb_logger.log_metrics({
-                        'val/accuracy': val_accuracy
+                        'val/accuracy': val_accuracy,
+                        'val/loss': val_loss
                     }, step=epoch)
                 
                 # Learning rate scheduling
@@ -445,7 +454,7 @@ class ResNetClassifier:
         all_preds = []
         all_labels = []
         
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad(), torch.amp.autocast('cuda'):
             for images, labels in tqdm(val_loader, desc="Validation"):
                 # Move data to device
                 images = images.to(self.device, non_blocking=True)
@@ -555,8 +564,12 @@ class ResNetClassifier:
         )
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
-        # Load scaler state
-        scaler = torch.cuda.amp.GradScaler()
-        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        # Load scaler state if available
+        if 'scaler_state_dict' in checkpoint:
+            scaler = torch.amp.GradScaler('cuda')
+            scaler.load_state_dict(checkpoint['scaler_state_dict'])
+            logger.info("Loaded GradScaler state from checkpoint")
+        else:
+            logger.info("No GradScaler state found in checkpoint, using default scaler")
         
         logger.info(f"Model loaded from {path}") 

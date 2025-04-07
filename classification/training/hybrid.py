@@ -1,11 +1,11 @@
 ##
 # @file hybrid.py
 # @package classification.training.hybrid
-# @brief Hybrid model combining LSNet for image processing and EAML for text processing
+# @brief Hybrid model combining LSNet/ResNet for image processing and EAML for text processing
 #
 # This module implements a hybrid architecture that combines the strengths of
-# LSNet for image understanding and EAML for OCR text processing.
-# It uses LSNet as the image encoder and EAML's text processing branch.
+# LSNet or ResNet for image understanding and EAML for OCR text processing.
+# It can use either LSNet or ResNet as the image encoder and EAML's text processing branch.
 #
 # @author Statistical Learning Team
 # @date 2025
@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import transforms
+from torchvision import transforms, models
 from PIL import Image
 import numpy as np
 from typing import List, Dict, Any, Optional, Union, Tuple
@@ -79,15 +79,21 @@ class HybridModel(nn.Module):
         
         # EAML text processing branch
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        # Add dropout after embedding for text regularization
+        self.embedding_dropout = nn.Dropout(dropout * 0.5)  # Lower dropout for embeddings
+        
         # Word level
         self.word_gru = nn.GRU(embedding_dim, word_hidden_dim, bidirectional=True, batch_first=True)
+        self.word_gru_dropout = nn.Dropout(dropout)  # Add dropout after GRU
         self.word_attention = nn.Sequential(
             nn.Linear(word_hidden_dim * 2, word_hidden_dim * 2),
             nn.Tanh(),
             nn.Linear(word_hidden_dim * 2, 1, bias=False)
         )
+        
         # Sentence level
         self.sent_gru = nn.GRU(word_hidden_dim * 2, sent_hidden_dim, bidirectional=True, batch_first=True)
+        self.sent_gru_dropout = nn.Dropout(dropout)  # Add dropout after GRU
         self.sent_attention = nn.Sequential(
             nn.Linear(sent_hidden_dim * 2, sent_hidden_dim * 2),
             nn.Tanh(),
@@ -97,17 +103,20 @@ class HybridModel(nn.Module):
         # Text feature dimension after bidirectional GRU
         self.text_feature_dim = sent_hidden_dim * 2
         
-        # Multimodal fusion
+        # Multimodal fusion - Increase dropout for stronger regularization
+        higher_dropout = min(dropout * 1.5, 0.7)  # Increase dropout but cap at 0.7
         self.fusion_layer = nn.Sequential(
             nn.Linear(self.image_feature_dim + self.text_feature_dim, 512),
+            nn.BatchNorm1d(512),  # Add BatchNorm for regularization
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Dropout(higher_dropout),
             nn.Linear(512, 256),
+            nn.BatchNorm1d(256),  # Add BatchNorm for regularization
             nn.ReLU(),
-            nn.Dropout(dropout)
+            nn.Dropout(higher_dropout)
         )
         
-        # Classifier
+        # Add L2 regularization to the classifier
         self.classifier = nn.Linear(256, num_classes)
         
     ##
@@ -129,9 +138,11 @@ class HybridModel(nn.Module):
         # Reshape for word-level processing
         docs_reshaped = docs.view(batch_size * num_sentences, max_sent_length)
         word_embeds = self.embedding(docs_reshaped)
+        word_embeds = self.embedding_dropout(word_embeds)  # Apply dropout after embedding
         
         # Word-level GRU
         word_gru_out, _ = self.word_gru(word_embeds)
+        word_gru_out = self.word_gru_dropout(word_gru_out)  # Apply dropout after GRU
         
         # Word-level attention
         word_attn_weights = self.word_attention(word_gru_out).squeeze(-1)
@@ -143,6 +154,188 @@ class HybridModel(nn.Module):
         
         # Sentence-level GRU
         sent_gru_out, _ = self.sent_gru(sent_reps)
+        sent_gru_out = self.sent_gru_dropout(sent_gru_out)  # Apply dropout after GRU
+        
+        # Sentence-level attention
+        sent_attn_weights = self.sent_attention(sent_gru_out).squeeze(-1)
+        sent_attn_weights = F.softmax(sent_attn_weights, dim=1)
+        text_features = torch.bmm(sent_attn_weights.unsqueeze(1), sent_gru_out).squeeze(1)
+        
+        # Fusion of image and text features
+        combined_features = torch.cat([image_features, text_features], dim=1)
+        fused_features = self.fusion_layer(combined_features)
+        
+        # Classification
+        output = self.classifier(fused_features)
+        
+        return output
+
+##
+# @brief Hybrid model combining ResNet for image processing and EAML for text processing
+#
+# This class implements a hybrid architecture that combines the strengths of
+# ResNet for image understanding and EAML for OCR text processing.
+# It uses ResNet as the image encoder and EAML's text processing branch.
+#
+class ResNetHybridModel(nn.Module):
+    """
+    Hybrid model that combines ResNet for image processing and EAML for text processing.
+    This model leverages the strengths of both architectures to create a powerful
+    document classifier that uses both image and OCR text modalities.
+    """
+    
+    ##
+    # @brief Constructor for ResNetHybridModel
+    # @param num_classes Number of document classes
+    # @param vocab_size Size of the vocabulary for text embedding
+    # @param embedding_dim Dimension of the word embeddings
+    # @param word_hidden_dim Dimension of the word-level GRU hidden state
+    # @param sent_hidden_dim Dimension of the sentence-level GRU hidden state
+    # @param trained_model_name Name of the ResNet model to use (e.g., "resnet18", "resnet50")
+    # @param pretrained Whether to use pre-trained weights
+    # @param dropout Dropout rate for regularization
+    #
+    def __init__(
+        self,
+        num_classes: int,
+        vocab_size: int,
+        embedding_dim: int = 100,
+        word_hidden_dim: int = 50,
+        sent_hidden_dim: int = 50,
+        trained_model_name: str = "resnet50",
+        pretrained: bool = True,
+        dropout: float = 0.5
+    ):
+        super(ResNetHybridModel, self).__init__()
+        self.num_classes = num_classes
+        
+        # ResNet image encoder
+        self.resnet = self._create_resnet_model(trained_model_name, pretrained)
+        # Remove the classifier head to get only the feature extractor
+        self.image_feature_dim = self.resnet.fc.in_features
+        self.resnet.fc = nn.Identity()  # Replace classifier with identity to get features
+        
+        # EAML text processing branch
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        # Add dropout after embedding for text regularization
+        self.embedding_dropout = nn.Dropout(dropout * 0.5)  # Lower dropout for embeddings
+        
+        # Word level
+        self.word_gru = nn.GRU(embedding_dim, word_hidden_dim, bidirectional=True, batch_first=True)
+        self.word_gru_dropout = nn.Dropout(dropout)  # Add dropout after GRU
+        self.word_attention = nn.Sequential(
+            nn.Linear(word_hidden_dim * 2, word_hidden_dim * 2),
+            nn.Tanh(),
+            nn.Linear(word_hidden_dim * 2, 1, bias=False)
+        )
+        
+        # Sentence level
+        self.sent_gru = nn.GRU(word_hidden_dim * 2, sent_hidden_dim, bidirectional=True, batch_first=True)
+        self.sent_gru_dropout = nn.Dropout(dropout)  # Add dropout after GRU
+        self.sent_attention = nn.Sequential(
+            nn.Linear(sent_hidden_dim * 2, sent_hidden_dim * 2),
+            nn.Tanh(),
+            nn.Linear(sent_hidden_dim * 2, 1, bias=False)
+        )
+        
+        # Text feature dimension after bidirectional GRU
+        self.text_feature_dim = sent_hidden_dim * 2
+        
+        # Multimodal fusion - Increase dropout for stronger regularization
+        higher_dropout = min(dropout * 1.5, 0.7)  # Increase dropout but cap at 0.7
+        self.fusion_layer = nn.Sequential(
+            nn.Linear(self.image_feature_dim + self.text_feature_dim, 512),
+            nn.BatchNorm1d(512),  # Add BatchNorm for regularization
+            nn.ReLU(),
+            nn.Dropout(higher_dropout),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),  # Add BatchNorm for regularization
+            nn.ReLU(),
+            nn.Dropout(higher_dropout)
+        )
+        
+        # Add L2 regularization to the classifier
+        self.classifier = nn.Linear(256, num_classes)
+    
+    ##
+    # @brief Create and configure the ResNet model
+    # @param trained_model_name Name of the ResNet model to use
+    # @param pretrained Whether to use pre-trained weights
+    # @return Configured ResNet model
+    #
+    def _create_resnet_model(self, trained_model_name, pretrained):
+        """
+        Create and configure the ResNet model.
+        
+        Args:
+            trained_model_name: Name of the ResNet model to use
+            pretrained: Whether to use pre-trained weights
+            
+        Returns:
+            Configured ResNet model
+        """
+        # Get the model class based on the model name
+        if trained_model_name == "resnet18":
+            model_class = models.resnet18
+        elif trained_model_name == "resnet34":
+            model_class = models.resnet34
+        elif trained_model_name == "resnet50":
+            model_class = models.resnet50
+        elif trained_model_name == "resnet101":
+            model_class = models.resnet101
+        else:
+            raise ValueError(f"Unsupported model: {trained_model_name}")
+        
+        # Create the model with pre-trained weights if specified
+        if pretrained:
+            weight_map = {
+                "resnet18": models.ResNet18_Weights.DEFAULT,
+                "resnet34": models.ResNet34_Weights.DEFAULT,
+                "resnet50": models.ResNet50_Weights.DEFAULT,
+                "resnet101": models.ResNet101_Weights.DEFAULT
+            }
+            model = model_class(weights=weight_map[trained_model_name])
+        else:
+            model = model_class(weights=None)
+        
+        return model
+        
+    ##
+    # @brief Forward pass through the hybrid model
+    # @param images Input images tensor of shape (batch_size, channels, height, width)
+    # @param docs Input text tensor of shape (batch_size, num_sentences, max_sent_length)
+    # @return Output tensor of shape (batch_size, num_classes)
+    #
+    def forward(self, images, docs):
+        # Process images with ResNet
+        image_features = self.resnet(images)
+        
+        # Process text with EAML text branch
+        batch_size, num_sentences, max_sent_length = docs.size()
+        
+        # Ensure no negative indices in docs (which would cause embedding errors)
+        docs = torch.clamp(docs, min=0, max=self.embedding.num_embeddings-1)
+        
+        # Reshape for word-level processing
+        docs_reshaped = docs.view(batch_size * num_sentences, max_sent_length)
+        word_embeds = self.embedding(docs_reshaped)
+        word_embeds = self.embedding_dropout(word_embeds)  # Apply dropout after embedding
+        
+        # Word-level GRU
+        word_gru_out, _ = self.word_gru(word_embeds)
+        word_gru_out = self.word_gru_dropout(word_gru_out)  # Apply dropout after GRU
+        
+        # Word-level attention
+        word_attn_weights = self.word_attention(word_gru_out).squeeze(-1)
+        word_attn_weights = F.softmax(word_attn_weights, dim=1)
+        word_contexts = torch.bmm(word_attn_weights.unsqueeze(1), word_gru_out).squeeze(1)
+        
+        # Reshape sentence representations for sentence-level processing
+        sent_reps = word_contexts.view(batch_size, num_sentences, -1)
+        
+        # Sentence-level GRU
+        sent_gru_out, _ = self.sent_gru(sent_reps)
+        sent_gru_out = self.sent_gru_dropout(sent_gru_out)  # Apply dropout after GRU
         
         # Sentence-level attention
         sent_attn_weights = self.sent_attention(sent_gru_out).squeeze(-1)
@@ -161,7 +354,7 @@ class HybridModel(nn.Module):
 class HybridClassifier:
     """
     Classifier that uses the HybridModel for document classification.
-    This classifier combines the strengths of LSNet for image processing
+    This classifier combines the strengths of LSNet or ResNet for image processing
     and EAML for OCR text processing.
     """
     
@@ -175,8 +368,12 @@ class HybridClassifier:
     # @param lsnet_model_size LSNet model size ('t', 's', or 'b')
     # @param dropout Dropout rate for regularization
     # @param learning_rate Learning rate for the optimizer
+    # @param weight_decay Weight decay for the optimizer
     # @param device Device to use for training (CPU or GPU)
     # @param num_epochs Number of training epochs
+    # @param use_resnet Whether to use ResNet instead of LSNet
+    # @param resnet_model_name Name of the ResNet model to use
+    # @param resnet_pretrained Whether to use pre-trained ResNet weights
     #
     def __init__(
         self,
@@ -188,8 +385,12 @@ class HybridClassifier:
         lsnet_model_size: str = 's',
         dropout: float = 0.5,
         learning_rate: float = 0.0005,
+        weight_decay: float = 0.03,  # Increased from 0.01 to 0.03
         device: Optional[str] = None,
-        num_epochs: int = 50
+        num_epochs: int = 50,
+        use_resnet: bool = True,
+        resnet_model_name: str = "resnet50",
+        resnet_pretrained: bool = True
     ):
         self.num_classes = num_classes
         self.vocab_size = vocab_size
@@ -199,7 +400,11 @@ class HybridClassifier:
         self.lsnet_model_size = lsnet_model_size
         self.dropout = dropout
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
         self.num_epochs = num_epochs
+        self.use_resnet = use_resnet
+        self.resnet_model_name = resnet_model_name
+        self.resnet_pretrained = resnet_pretrained
         
         # Set device
         if device is None:
@@ -208,34 +413,42 @@ class HybridClassifier:
             self.device = torch.device(device)
             
         # Create model
-        self.model = HybridModel(
-            num_classes=num_classes,
-            vocab_size=vocab_size,
-            embedding_dim=embedding_dim,
-            word_hidden_dim=word_hidden_dim,
-            sent_hidden_dim=sent_hidden_dim,
-            lsnet_model_size=lsnet_model_size,
-            dropout=dropout
-        ).to(self.device)
+        if use_resnet:
+            self.model = ResNetHybridModel(
+                num_classes=num_classes,
+                vocab_size=vocab_size,
+                embedding_dim=embedding_dim,
+                word_hidden_dim=word_hidden_dim,
+                sent_hidden_dim=sent_hidden_dim,
+                trained_model_name=resnet_model_name,
+                pretrained=resnet_pretrained,
+                dropout=dropout
+            ).to(self.device)
+        else:
+            self.model = HybridModel(
+                num_classes=num_classes,
+                vocab_size=vocab_size,
+                embedding_dim=embedding_dim,
+                word_hidden_dim=word_hidden_dim,
+                sent_hidden_dim=sent_hidden_dim,
+                lsnet_model_size=lsnet_model_size,
+                dropout=dropout
+            ).to(self.device)
         
-        # Set optimizer
+        # Set optimizer with increased weight decay
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
             lr=learning_rate,
-            weight_decay=0.01
+            weight_decay=weight_decay,  # Increased weight decay for stronger regularization
+            amsgrad=True  # Enable AMSGrad variant for better convergence
         )
         
         # Set loss function
         self.criterion = nn.CrossEntropyLoss()
         
         # Set learning rate scheduler
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer,
-            mode='max',
-            factor=0.5,
-            patience=5,
-            verbose=True
-        )
+        # Replace ReduceLROnPlateau with a cosine annealing scheduler
+        self.scheduler = None  # Will be set in the trainer class
 
 class HybridTrainer:
     """
@@ -251,15 +464,19 @@ class HybridTrainer:
         word_hidden_dim: int = 50,
         sent_hidden_dim: int = 50,
         lsnet_model_size: str = 's',
-        dropout: float = 0.5,
+        dropout: float = 0.6,  # Increased from 0.5 to 0.6
         learning_rate: float = 0.0005,
-        weight_decay: float = 0.01,
+        weight_decay: float = 0.03,  # Increased from 0.01 to 0.03
         device: Optional[str] = None,
         num_epochs: int = 50,
         save_dir: str = "models/hybrid",
         patience: int = 10,
         mixed_precision: bool = True,
-        use_ocr_text: bool = True
+        scheduler_type: str = "cosine",  # New parameter for scheduler selection
+        use_ocr_text: bool = True,  # Added parameter for OCR text usage
+        use_resnet: bool = False,  # Added parameter for using ResNet
+        resnet_model_name: str = "resnet50",  # Added parameter for ResNet model name
+        resnet_pretrained: bool = True  # Added parameter for pre-trained ResNet
     ):
         """
         Initialize the HybridTrainer.
@@ -279,7 +496,11 @@ class HybridTrainer:
             save_dir: Directory to save model checkpoints
             patience: Number of epochs to wait for improvement before early stopping
             mixed_precision: Whether to use mixed precision training
-            use_ocr_text: Whether to use OCR text from the dataframe
+            scheduler_type: Type of learning rate scheduler to use ('cosine', 'onecycle', or 'plateau')
+            use_ocr_text: Whether to use OCR text from the dataset
+            use_resnet: Whether to use ResNet instead of LSNet
+            resnet_model_name: Name of the ResNet model to use
+            resnet_pretrained: Whether to use pre-trained ResNet weights
         """
         self.num_classes = num_classes
         self.vocab_size = vocab_size
@@ -294,7 +515,11 @@ class HybridTrainer:
         self.save_dir = save_dir
         self.patience = patience
         self.mixed_precision = mixed_precision
+        self.scheduler_type = scheduler_type
         self.use_ocr_text = use_ocr_text
+        self.use_resnet = use_resnet
+        self.resnet_model_name = resnet_model_name
+        self.resnet_pretrained = resnet_pretrained
         
         # Create save directory if it doesn't exist
         os.makedirs(save_dir, exist_ok=True)
@@ -317,14 +542,18 @@ class HybridTrainer:
             lsnet_model_size=lsnet_model_size,
             dropout=dropout,
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
             device=device,
-            num_epochs=num_epochs
+            num_epochs=num_epochs,
+            use_resnet=use_resnet,
+            resnet_model_name=resnet_model_name,
+            resnet_pretrained=resnet_pretrained
         )
         
         # Set up scaler for mixed precision training if using GPU
         self.scaler = None
         if self.mixed_precision and self.device.type == 'cuda':
-            self.scaler = torch.amp.GradScaler('cuda')
+            self.scaler = torch.cuda.amp.GradScaler()
             logger.info("Using mixed precision training with gradient scaling")
     
     def _process_batch(self, batch, batch_idx=None):
@@ -396,17 +625,54 @@ class HybridTrainer:
         """
         logger.info("Starting training of hybrid model")
         
-        # Get model, optimizer, criterion, and scheduler from classifier
+        # Get model, optimizer, criterion from classifier
         model = self.classifier.model
         optimizer = self.classifier.optimizer
         criterion = self.classifier.criterion
-        scheduler = self.classifier.scheduler
+        
+        # Set up learning rate scheduler based on scheduler_type
+        if self.scheduler_type == "cosine":
+            # Cosine Annealing with warm restarts
+            # T_0 is the number of epochs before first restart
+            # T_mult is the factor by which T_0 is multiplied after each restart
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer, 
+                T_0=10,  # Initial restart interval
+                T_mult=2,  # Multiply T_0 by this factor after each restart
+                eta_min=1e-6  # Minimum learning rate
+            )
+            logger.info("Using CosineAnnealingWarmRestarts scheduler")
+        elif self.scheduler_type == "onecycle":
+            # One Cycle Policy
+            # total_steps = num_epochs * len(train_loader)
+            steps_per_epoch = len(train_loader)
+            scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr=self.learning_rate * 10,  # Peak learning rate
+                total_steps=self.num_epochs * steps_per_epoch,
+                pct_start=0.3,  # Percentage of iterations to reach peak LR
+                div_factor=25,  # Initial LR = max_lr/div_factor
+                final_div_factor=1000,  # Final LR = initial_lr/final_div_factor
+                anneal_strategy='cos'  # Cosine annealing
+            )
+            logger.info("Using OneCycleLR scheduler")
+        else:
+            # Fallback to ReduceLROnPlateau
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='max',
+                factor=0.5,
+                patience=5,
+                verbose=True,
+                min_lr=1e-6
+            )
+            logger.info("Using ReduceLROnPlateau scheduler")
+        
+        self.classifier.scheduler = scheduler
         
         # Set up TensorBoard writer if tb_logger is not provided
         if tb_logger is None:
             tb_logger = SummaryWriter(os.path.join(self.save_dir, 'logs'))
-        else:
-            tb_logger = tb_logger
         
         # Training loop
         best_val_accuracy = 0.0
@@ -446,6 +712,11 @@ class HybridTrainer:
                     
                     # Backward pass with gradient scaling
                     self.scaler.scale(loss).backward()
+                    
+                    # Gradient clipping to prevent exploding gradients
+                    self.scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    
                     self.scaler.step(optimizer)
                     self.scaler.update()
                 else:
@@ -453,7 +724,15 @@ class HybridTrainer:
                     outputs = model(images, docs)
                     loss = criterion(outputs, labels)
                     loss.backward()
+                    
+                    # Gradient clipping
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    
                     optimizer.step()
+                
+                # Update OneCycleLR scheduler per step if used
+                if self.scheduler_type == "onecycle":
+                    scheduler.step()
                 
                 # Update statistics
                 running_loss += loss.item()
@@ -464,7 +743,8 @@ class HybridTrainer:
                 # Update progress bar
                 progress_bar.set_postfix({
                     'loss': running_loss / (batch_idx + 1),
-                    'acc': accuracy_score(all_labels, all_preds)
+                    'acc': accuracy_score(all_labels, all_preds),
+                    'lr': optimizer.param_groups[0]['lr']
                 })
                 
                 # Log batch-level metrics to TensorBoard
@@ -481,20 +761,26 @@ class HybridTrainer:
             train_loss = running_loss / len(train_loader)
             
             # Log training metrics
-            tb_logger.log_metrics({
-                'train/epoch_loss': train_loss,
-                'train/epoch_accuracy': train_accuracy,
-                'train/learning_rate': optimizer.param_groups[0]['lr']
-            }, step=epoch)
+            if tb_logger:
+                tb_logger.log_metrics({
+                    'train/epoch_loss': train_loss,
+                    'train/epoch_accuracy': train_accuracy,
+                    'train/learning_rate': optimizer.param_groups[0]['lr']
+                }, step=epoch)
             
-            logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.4f}")
+            logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
+            
+            # Update cosine scheduler per epoch if used
+            if self.scheduler_type == "cosine":
+                scheduler.step()
             
             # Validation phase
             if val_loader is not None:
                 val_accuracy, val_loss = self.evaluate(val_loader, tb_logger, epoch)
                 
-                # Scheduler step
-                scheduler.step(val_accuracy)
+                # Update ReduceLROnPlateau scheduler if used
+                if self.scheduler_type == "plateau":
+                    scheduler.step(val_accuracy)
                 
                 # Log validation metrics
                 logger.info(f"Epoch {epoch+1}/{self.num_epochs} - Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
@@ -540,7 +826,7 @@ class HybridTrainer:
         
         # Close TensorBoard writer if we created it
         if tb_logger is None:
-            tb_writer.close()
+            tb_logger.close()
         
         return best_val_accuracy if val_loader is not None else train_accuracy
     
@@ -599,10 +885,10 @@ class HybridTrainer:
         if tb_logger is not None and step is not None:
             tb_logger.log_metrics({
                 'val/loss': loss,
-                'val/accuracy': accuracy,
-                'val/precision': precision,
-                'val/recall': recall,
-                'val/f1': f1
+                'val/accuracy': accuracy*100,
+                'val/precision': precision*100,
+                'val/recall': recall*100,
+                'val/f1': f1*100
             }, step=step)
         
         logger.info(f"Evaluation - Loss: {loss:.4f}, Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
@@ -729,7 +1015,10 @@ class HybridTrainer:
                 'sent_hidden_dim': self.sent_hidden_dim,
                 'lsnet_model_size': self.lsnet_model_size,
                 'dropout': self.dropout,
-                'use_ocr_text': self.use_ocr_text
+                'use_ocr_text': self.use_ocr_text,
+                'use_resnet': self.use_resnet,
+                'resnet_model_name': self.resnet_model_name,
+                'resnet_pretrained': self.resnet_pretrained
             },
             'scaler': self.scaler.state_dict() if self.scaler else None
         }, path)
@@ -761,6 +1050,9 @@ class HybridTrainer:
             self.lsnet_model_size = config.get('lsnet_model_size', self.lsnet_model_size)
             self.dropout = config.get('dropout', self.dropout)
             self.use_ocr_text = config.get('use_ocr_text', self.use_ocr_text)
+            self.use_resnet = config.get('use_resnet', self.use_resnet)
+            self.resnet_model_name = config.get('resnet_model_name', self.resnet_model_name)
+            self.resnet_pretrained = config.get('resnet_pretrained', self.resnet_pretrained)
             
             # Recreate classifier with updated configuration
             self.classifier = HybridClassifier(
@@ -772,8 +1064,12 @@ class HybridTrainer:
                 lsnet_model_size=self.lsnet_model_size,
                 dropout=self.dropout,
                 learning_rate=self.learning_rate,
+                weight_decay=self.weight_decay,
                 device=self.device,
-                num_epochs=self.num_epochs
+                num_epochs=self.num_epochs,
+                use_resnet=self.use_resnet,
+                resnet_model_name=self.resnet_model_name,
+                resnet_pretrained=self.resnet_pretrained
             )
         
         # Load model state

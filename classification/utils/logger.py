@@ -170,8 +170,25 @@ class Logger:
         if self.enable_tensorboard and self.writer:
             import torch
             device = next(model.parameters()).device
-            dummy_input = torch.zeros(input_size, device=device)
-            self.writer.add_graph(model, dummy_input)
+            
+            # Check if model is EAML (which requires both docs and images)
+            if hasattr(model, '__class__') and model.__class__.__name__ == 'EAML':
+                # Create dummy inputs for EAML model
+                # For docs: (batch_size, num_sentences, max_sent_length)
+                dummy_docs = torch.randint(0, 1000, (1, 15, 50), device=device)
+                # For images: (batch_size, channels, height, width)
+                dummy_images = torch.zeros((1, 3, 224, 224), device=device)
+                # Use both inputs for tracing
+                self.writer.add_graph(model, (dummy_docs, dummy_images))
+            else:
+                # Standard case for models with single input
+                dummy_input = torch.zeros(input_size, device=device)
+                self.writer.add_graph(model, dummy_input)
+
+    def log_figure(self, name: str, figure, step: int=0):   
+        """Log figure to TensorBoard"""
+        if self.enable_tensorboard and self.writer:
+            self.writer.add_figure(name, figure, step)
         
     def save_config(self, config: Dict[str, Any], filename: str = "config.yaml"):
         """Save configuration to YAML file"""

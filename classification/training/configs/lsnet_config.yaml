@@ -19,7 +19,7 @@ data:
 
 # Model settings
 model:
-  name: "lsnet_t"  # Options: lsnet_t, lsnet_s, lsnet_b
+  name: "lsnet_s"  # Options: lsnet_t, lsnet_s, lsnet_b
   pretrained: true
   freeze_backbone: false
   num_classes: 1000  # ImageNet has 1000 classes
@@ -27,6 +27,7 @@ model:
 # Training settings
 training:
   device: "cuda"  # Options: cuda, cpu
+  apply_ocr: true
   num_epochs: 55
   optimizer:
     name: "adam"  # Options: adam, sgd
@@ -49,7 +50,7 @@ training:
 # Experiment tracking
 logging:
   log_dir: "./logs"
-  experiment_name: "lsnet_baseline" # Will use timestamp if null
+  experiment_name: "lsnet_sunday_night_baseline" # Will use timestamp if null
   tensorboard:
     enabled: true
     log_histograms: true

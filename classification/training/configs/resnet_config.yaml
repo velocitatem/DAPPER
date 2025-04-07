@@ -1,7 +1,7 @@
 # ResNet Classifier Configuration
 model:
   name: "resnet"
-  resnet_model: "resnet18"  # Options: resnet18, resnet34, resnet50, resnet101
+  trained_model_name: "resnet50"  # Options: resnet18, resnet34, resnet50, resnet101
   pretrained: true
 
 # Data settings
@@ -13,6 +13,7 @@ data:
 
 # Training parameters
 training:
+  use_ocr_text: true
   test_size: 0.2
   num_epochs: 50
   dropout_rate: 0.2
@@ -25,7 +26,7 @@ training:
 # Logging parameters
 logging:
   log_dir: "logs"
-  experiment_name: "resnet_baseline"  # Will be auto-generated if null
+  experiment_name: "resnet_sunday_night_baseline"  # Will be auto-generated if null
 
 # Optuna Tuning Parameters
 tuning:
@@ -48,6 +49,6 @@ tuning:
     data.dataloader.batch_size:
       type: categorical
       choices: [32, 64, 128]
-    model.resnet_model: # Example: Tune model variant
+    model.trained_model_name: # Updated parameter name here too
       type: categorical
       choices: ["resnet18", "resnet34"] 
