@@ -9,7 +9,7 @@ DAPPER is a powerful, end-to-end document intelligence platform that combines cu
 
 ### Key Features
 
-- **Multi-Model Document Classification**: Achieve up to 95% accuracy with our state-of-the-art models
+- **Multi-Model Document Classification**: Achieve up to 80% accuracy with our state-of-the-art models
 - **Intelligent Information Extraction**: Automatically pull key data from invoices and forms
 - **Interactive Dashboard**: User-friendly interface for document uploading and processing
 - **Batch Processing**: Handle thousands of documents with a single upload
